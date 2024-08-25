@@ -31,14 +31,14 @@ fn main() {
 
     match opt.command {
         Command::Tokenise {} => {
-            println!("{:?}", oshug_assembler::lex::tokenize(&content));
+            println!("{:?}", peppermint_cli::lex::tokenize(&content));
         }
         Command::Parse {} => {
-            let mut tokens = oshug_assembler::lex::tokenize(&content)
+            let mut tokens = peppermint_cli::lex::tokenize(&content)
                 .expect("tokenisation error")
                 .into_iter();
-            let program = oshug_assembler::parse::Ast::consume_token_stream(&mut tokens)
-                .expect("parse error");
+            let program =
+                peppermint_cli::parse::Ast::consume_token_stream(&mut tokens).expect("parse error");
             println!("{:?}", program);
         }
         Command::Assemble { output_file: _ } => todo!("assembler not implemented yet"),
