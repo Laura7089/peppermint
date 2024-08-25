@@ -6,6 +6,7 @@ pub mod lex {
     use logos::Logos;
 
     use super::Word;
+    pub type Lexer<'a> = logos::Lexer<'a, Token>;
 
     #[derive(Logos, Debug, Clone, PartialEq)]
     #[logos(skip r"[ \t\n\f]+")]
@@ -37,7 +38,7 @@ pub mod lex {
         Load,
         And,
         Xor,
-        OR,
+        Or,
         Add,
         Sub,
         Store,
@@ -82,4 +83,92 @@ pub mod lex {
             lexer.next().expect("no output").expect("parse error")
         }
     }
+}
+
+use lex::Token;
+
+#[derive(Debug)]
+pub struct LabelledStatement {
+    label: Option<String>,
+    statement: Statement,
+}
+
+impl LabelledStatement {
+    pub fn take_from_token_stream(stream: &mut impl Iterator<Item = Token>) -> Option<Self> {
+        // filter out comments
+        // TODO: do this somewhere higher up the stack
+        let mut stream = stream.filter(|t| t != &Token::Comment);
+        let mut label = None;
+
+        let statement_token = {
+            let next_token = stream.next()?;
+            // get the statement token out by stripping out the potential label
+            if let Token::Label(name) = next_token {
+                label = Some(name);
+                stream.next()?
+            } else {
+                next_token
+            }
+        };
+
+        // check for literals
+        if let Token::Literal(val) = statement_token {
+            return Some(Self {
+                label,
+                statement: Statement::Literal(val),
+            });
+        }
+
+        // now we only have instructions left to handle
+        let Token::Instruction(instr_type) = statement_token else {
+            // if it's not an instruction token then the code is malformed
+            return None;
+        };
+
+        let operand = stream.next()?;
+        let full_inst = match (instr_type, operand) {
+            (lex::InstructionKind::Load, Token::Address(addr)) => FullInstruction::Load(addr),
+            (lex::InstructionKind::And, Token::Address(addr)) => FullInstruction::And(addr),
+            (lex::InstructionKind::Xor, Token::Address(addr)) => FullInstruction::Xor(addr),
+            (lex::InstructionKind::Or, Token::Address(addr)) => FullInstruction::Or(addr),
+            (lex::InstructionKind::Add, Token::Address(addr)) => FullInstruction::Add(addr),
+            (lex::InstructionKind::Sub, Token::Address(addr)) => FullInstruction::Sub(addr),
+            (lex::InstructionKind::Store, Token::Address(addr)) => FullInstruction::Store(addr),
+            (lex::InstructionKind::Jump, Token::JumpLabel(value)) => FullInstruction::Jump(value),
+            _ => return None,
+        };
+
+        Some(Self {
+            label,
+            statement: Statement::InstrLine(full_inst),
+        })
+    }
+
+    pub fn consume_token_stream(stream: &mut impl Iterator<Item = Token>) -> Vec<Self> {
+        let mut statements = Vec::new();
+
+        while let Some(statement) = Self::take_from_token_stream(stream) {
+            statements.push(statement);
+        }
+
+        statements
+    }
+}
+
+#[derive(Debug)]
+pub enum Statement {
+    InstrLine(FullInstruction),
+    Literal(Word),
+}
+
+#[derive(Debug)]
+pub enum FullInstruction {
+    Load(Word),
+    And(Word),
+    Xor(Word),
+    Or(Word),
+    Add(Word),
+    Sub(Word),
+    Store(Word),
+    Jump(String),
 }

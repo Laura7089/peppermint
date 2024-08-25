@@ -8,5 +8,8 @@ fn main() {
         .collect::<Result<Vec<_>, _>>()
         .expect("parse error");
 
-    println!("{tokens:?}");
+    let mut tokens_iter = tokens.into_iter();
+    let program = oshug_assembler::LabelledStatement::consume_token_stream(&mut tokens_iter);
+
+    println!("{program:?}");
 }
