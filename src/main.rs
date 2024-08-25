@@ -27,7 +27,7 @@ fn main() {
         Command::Parse { input } => {
             let content = std::fs::read_to_string(input).expect("couldn't read file");
             let mut tokens = tokenize(&content).into_iter();
-            let program = oshug_assembler::LabelledStatement::consume_token_stream(&mut tokens);
+            let program = oshug_assembler::parse::Ast::consume_token_stream(&mut tokens);
             println!("{:?}", program);
         }
         Command::Assemble { input: _ } => todo!("assembler not implemented yet"),
