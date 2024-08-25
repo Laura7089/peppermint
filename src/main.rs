@@ -1,41 +1,55 @@
-use std::path::PathBuf;
+use std::{
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use clap::Parser;
-use logos::Logos;
 
 #[derive(Parser)]
 struct Opt {
     #[clap(subcommand)]
     command: Command,
+
+    /// File to read assembly from.
+    #[clap(short, long, default_value = "/dev/stdin")]
+    file: PathBuf,
 }
 
 #[derive(clap::Subcommand)]
 enum Command {
-    Tokenise { input: PathBuf },
-    Parse { input: PathBuf },
-    Assemble { input: PathBuf },
+    /// Tokenise the input file.
+    Tokenise {},
+    /// Parse the input file into an AST.
+    Parse {},
+    /// Assemble the input file into raw machine code.
+    Assemble { output_file: PathBuf },
 }
 
 fn main() {
     let opt = Opt::parse();
+    let content = get_file_content(&opt.file);
 
     match opt.command {
-        Command::Tokenise { input } => {
-            let content = std::fs::read_to_string(input).expect("couldn't read file");
-            println!("{:?}", tokenize(&content));
+        Command::Tokenise {} => {
+            println!("{:?}", oshug_assembler::lex::tokenize(&content));
         }
-        Command::Parse { input } => {
-            let content = std::fs::read_to_string(input).expect("couldn't read file");
-            let mut tokens = tokenize(&content).into_iter();
+        Command::Parse {} => {
+            let mut tokens = oshug_assembler::lex::tokenize(&content).into_iter();
             let program = oshug_assembler::parse::Ast::consume_token_stream(&mut tokens);
             println!("{:?}", program);
         }
-        Command::Assemble { input: _ } => todo!("assembler not implemented yet"),
+        Command::Assemble { output_file: _ } => todo!("assembler not implemented yet"),
     }
 }
 
-fn tokenize(input: &str) -> Vec<oshug_assembler::lex::Token> {
-    oshug_assembler::lex::Token::lexer(input)
-        .collect::<Result<Vec<_>, _>>()
-        .expect("parse error")
+fn get_file_content(input: &Path) -> String {
+    if input.to_str() == Some("-") {
+        let mut buf = String::new();
+        let mut stdin = std::io::stdin();
+        stdin.read_to_string(&mut buf).expect("couldn't read stdin");
+
+        buf
+    } else {
+        std::fs::read_to_string(input).expect("couldn't read file")
+    }
 }

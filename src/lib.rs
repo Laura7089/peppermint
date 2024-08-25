@@ -8,6 +8,12 @@ pub mod lex {
     use super::Word;
     pub type Lexer<'a> = logos::Lexer<'a, Token>;
 
+    pub fn tokenize(input: &str) -> Vec<Token> {
+        Token::lexer(input)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("parse error")
+    }
+
     #[derive(Logos, Debug, Clone, PartialEq)]
     #[logos(skip r"[ \t\n\f]+")]
     pub enum Token {
