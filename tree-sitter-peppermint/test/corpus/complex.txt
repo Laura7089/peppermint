@@ -1,0 +1,52 @@
+===
+Sample ten plus 5
+===
+
+# here's a very simple program that calculates 10+5 and stores it at 0x21:
+10
+STORE [0x20]
+5
+ADD [0x20]
+STORE [0x21]
+
+---
+
+(source_file 
+	(comment)
+	(statement (literal))
+	(statement (instruction
+		(opcode) (operand (address))))
+	(statement (literal))
+	(statement (instruction
+		(opcode) (operand (address))))
+	(statement (instruction
+		(opcode) (operand (address)))))
+
+===
+Sample Loop
+====
+
+# here's a simple program using labels and JUMPS:
+1
+STORE [0x110]
+0
+STORE [0x100]
+loop: ADD [0x110]
+JUMP :loop
+
+---
+
+(source_file
+	(comment)
+	(statement (literal))
+	(statement (instruction
+		(opcode) (operand (address))))
+	(statement (literal))
+	(statement (instruction
+		(opcode) (operand (address))))
+	(statement (label) (instruction
+		(opcode) (operand (address))))
+	(statement (instruction
+		(opcode) (operand (label_jump))))
+	)
+	

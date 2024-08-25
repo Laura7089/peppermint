@@ -29,6 +29,11 @@
     }
   },
   {
+    "type": "label",
+    "named": true,
+    "fields": {}
+  },
+  {
     "type": "label_jump",
     "named": true,
     "fields": {}
@@ -81,11 +86,15 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": false,
+      "multiple": true,
       "required": true,
       "types": [
         {
           "type": "instruction",
+          "named": true
+        },
+        {
+          "type": "label",
           "named": true
         },
         {

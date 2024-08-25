@@ -15,9 +15,12 @@ module.exports = grammar({
 
     _whitespace: $ => /[ \t\n]+/,
 
-    statement: $ => choice(
-      $.instruction,
-      $.literal,
+    statement: $ => seq(
+      optional($.label),
+      choice(
+        $.instruction,
+        $.literal,
+      ),
     ),
 
     comment: $ => seq(choice(';', '#'), $._comment_text),

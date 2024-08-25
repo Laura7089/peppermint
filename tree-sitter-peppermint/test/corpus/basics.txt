@@ -5,23 +5,3 @@ Blank File
 ---
 
 (source_file)
-
-====================
-Whole-Line # Comment
-====================
-
-# here's a comment!
-
----
-
-(source_file (comment))
-
-===
-Whole-Line ; Comment
-===
-
-; here's another comment...
-
----
-
-(source_file (comment))

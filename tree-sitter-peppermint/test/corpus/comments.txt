@@ -1,0 +1,58 @@
+===
+Comment after instruction
+===
+
+LOAD [0x10] ; a load instruction
+
+---
+
+(source_file
+	(statement (instruction 
+		(opcode) (operand (address))))
+	(comment))
+
+===
+Whole-Line # Comment
+===
+
+# here's a comment!
+
+---
+
+(source_file (comment))
+
+===
+Whole-Line ; Comment
+===
+
+; here's another comment...
+
+---
+
+(source_file (comment))
+
+===
+Comment before instruction
+===
+
+; here's a comment follow by an instruction
+LOAD [0x10]
+
+---
+
+(source_file
+	(comment)
+	(statement (instruction (opcode) (operand (address)))))
+
+===
+Two Comments
+===
+
+; here's a comment
+# here's another comment
+
+---
+
+(source_file
+	(comment)
+	(comment))
