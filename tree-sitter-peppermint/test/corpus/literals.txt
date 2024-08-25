@@ -1,0 +1,29 @@
+===============
+Decimal Literal
+===============
+
+10102
+
+---
+
+(source_file (statement (literal)))
+
+===================
+Hexadecimal Literal
+===================
+
+0x3182abf
+
+---
+
+(source_file (statement (literal)))
+
+==============
+Binary Literal
+==============
+
+0b10010110
+
+---
+
+(source_file (statement (literal)))
