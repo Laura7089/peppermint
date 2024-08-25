@@ -40,7 +40,8 @@
       "injection-regex": "^ppr$",
       "file-types": [
         "ppr"
-      ]
+      ],
+      "highlights": "./queries/highlights.scm"
     }
   ]
 }
