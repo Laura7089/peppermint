@@ -49,6 +49,10 @@ pub mod lex {
     /// Fully run tokenisation on source code.
     ///
     /// Runs until EOF.
+    ///
+    /// # Errors
+    ///
+    /// Throws [`ParseError::InvalidToken`] if a malformed token is found.
     pub fn tokenize(input: &str) -> Result<Vec<Token>> {
         Token::lexer(input).collect::<Result<Vec<_>>>()
     }
@@ -185,6 +189,10 @@ pub mod parse {
 
     impl Ast {
         /// Completely consume `stream`, parsing tokens into an AST (`Self`).
+        ///
+        /// # Errors
+        ///
+        /// See [`LabelledStatement::take_from_token_stream`].
         pub fn consume_token_stream(stream: &mut impl Iterator<Item = Token>) -> Result<Self> {
             let mut statements = Vec::new();
             while let Some(stat) = LabelledStatement::take_from_token_stream(stream)? {
@@ -208,6 +216,10 @@ pub mod parse {
         /// Take the next (labelled) statement from `stream`.
         ///
         /// Mutates `stream`, leaving everything after the next (valid) statement.
+        ///
+        /// # Errors
+        ///
+        /// Can throw [`ParseError::EndOfFile`], [`ParseError::BadOperand`] or [`ParseError::InvalidToken]`.
         pub fn take_from_token_stream(
             stream: &mut impl Iterator<Item = Token>,
         ) -> Result<Option<Self>> {
@@ -291,6 +303,10 @@ pub mod flattened {
         }
 
         /// Consume a non-finalised [`parse::Ast`] and make the labels absolute.
+        ///
+        /// # Errors
+        ///
+        /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
         pub fn from_ast(ast: parse::Ast) -> Result<Self> {
             // mapping from label names -> line numbers
             let line_labels = {
@@ -352,6 +368,10 @@ pub mod flattened {
 }
 
 /// Fully parse source code into final syntax tree.
+///
+/// # Errors
+///
+/// May throw any [`ParseError`] from any stage of parsing.
 pub fn parse_final(input: &str) -> Result<flattened::AstFinal> {
     let mut tokens = lex::tokenize(&input)?.into_iter();
     let program = parse::Ast::consume_token_stream(&mut tokens)?;
