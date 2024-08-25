@@ -1,0 +1,12 @@
+[package]
+name = "oshug_assembler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.16", features = ["derive", "color"] }
+logos = "0.14.1"
+strum = { version = "0.26.3", features = ["derive"] }
+
+[dev-dependencies]
+test-case = "3.3.1"

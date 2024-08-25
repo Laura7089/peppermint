@@ -1,0 +1,57 @@
+# this is a comment with #! the assembler should ignore everything until the end of the line.
+; you can use semicolons too!
+
+# that's a blank line! that should also be ignored.
+
+# these are our instructions as laid out in the upstream README:
+# LOAD
+# AND
+# XOR
+# OR
+# ADD
+# SUB
+# STORE
+# JUMP
+
+# all the instructions are case-insensitive.
+
+# this is a (decimal) RAM address:
+# [1094]
+# it's only valid after an instruction.
+# these are all RAM addresses too:
+# [0x29ab18] - hex
+# [0b10110] - binary
+# RAM addresses are only 7-bit.
+
+# this is a literal:
+# 10
+# so are these:
+# 0x170
+# 0b10111
+# you can use those to load a value into the accumulator.
+# literals can only fit 15-bit values.
+
+# here's a very simple program that calculates 10+5 and stores it at 0x21:
+10
+STORE [0x20]
+5
+ADD [0x20]
+STORE [0x21]
+
+# this is a label:
+# my-label:
+# it can be placed before an instruction line:
+# this-is-a-label: LOAD [0x1719]
+# if it's not placed before an instruction line, it will collapse into the next instruction.
+# labels can only contain ASCII alphanumeric characters, hyphens (-) and underscores (_).
+# they MUST start with an alphabetical character.
+# when you refer to a label (with a JUMP instruction), you put the colon in front:
+# JUMP :my-label
+
+# here's a simple program using labels and JUMPS:
+1
+STORE [0x110]
+0
+STORE [0x100]
+loop: ADD [0x110]
+JUMP :loop
