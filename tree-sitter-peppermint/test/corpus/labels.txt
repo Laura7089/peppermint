@@ -1,0 +1,34 @@
+===
+Labelled instruction
+===
+
+; comment
+label1: LOAD [0b11010]
+
+---
+
+(source_file
+	(comment)
+	(statement (label) (instruction
+		(opcode) (operand (address)))))
+
+===
+Labelled jump
+===
+
+JUMP :another-label
+
+---
+
+(source_file
+	(statement (instruction
+		(opcode) (operand (label_jump)))))
+
+===
+Two Labels
+:error
+===
+
+label1: illegal-inner-label: LOAD [10]
+
+----
