@@ -96,6 +96,24 @@ pub mod lex {
     }
 }
 
+#[derive(Debug)]
+pub enum Statement<L> {
+    InstrLine(Instruction<L>),
+    Literal(Literal),
+}
+
+#[derive(Debug)]
+pub enum Instruction<L> {
+    Load(Address),
+    And(Address),
+    Xor(Address),
+    Or(Address),
+    Add(Address),
+    Sub(Address),
+    Store(Address),
+    Jump(L),
+}
+
 // AST construction.
 pub mod parse {
     use super::*;
@@ -121,7 +139,7 @@ pub mod parse {
     #[derive(Debug)]
     pub struct LabelledStatement {
         pub label: Option<String>,
-        pub statement: Statement,
+        pub statement: Statement<String>,
     }
 
     impl LabelledStatement {
@@ -158,16 +176,14 @@ pub mod parse {
 
             let operand = stream.next()?;
             let full_inst = match (instr_type, operand) {
-                (lex::InstructionKind::Load, Token::Address(addr)) => FullInstruction::Load(addr),
-                (lex::InstructionKind::And, Token::Address(addr)) => FullInstruction::And(addr),
-                (lex::InstructionKind::Xor, Token::Address(addr)) => FullInstruction::Xor(addr),
-                (lex::InstructionKind::Or, Token::Address(addr)) => FullInstruction::Or(addr),
-                (lex::InstructionKind::Add, Token::Address(addr)) => FullInstruction::Add(addr),
-                (lex::InstructionKind::Sub, Token::Address(addr)) => FullInstruction::Sub(addr),
-                (lex::InstructionKind::Store, Token::Address(addr)) => FullInstruction::Store(addr),
-                (lex::InstructionKind::Jump, Token::JumpLabel(value)) => {
-                    FullInstruction::Jump(value)
-                }
+                (lex::InstructionKind::Load, Token::Address(addr)) => Instruction::Load(addr),
+                (lex::InstructionKind::And, Token::Address(addr)) => Instruction::And(addr),
+                (lex::InstructionKind::Xor, Token::Address(addr)) => Instruction::Xor(addr),
+                (lex::InstructionKind::Or, Token::Address(addr)) => Instruction::Or(addr),
+                (lex::InstructionKind::Add, Token::Address(addr)) => Instruction::Add(addr),
+                (lex::InstructionKind::Sub, Token::Address(addr)) => Instruction::Sub(addr),
+                (lex::InstructionKind::Store, Token::Address(addr)) => Instruction::Store(addr),
+                (lex::InstructionKind::Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
                 _ => return None,
             };
 
@@ -177,55 +193,22 @@ pub mod parse {
             })
         }
     }
-
-    #[derive(Debug)]
-    pub enum Statement {
-        InstrLine(FullInstruction),
-        Literal(Literal),
-    }
-
-    #[derive(Debug)]
-    pub enum FullInstruction {
-        Load(Address),
-        And(Address),
-        Xor(Address),
-        Or(Address),
-        Add(Address),
-        Sub(Address),
-        Store(Address),
-        Jump(String),
-    }
 }
 
 /// Final program representation.
 pub mod flattened {
     use std::collections::HashMap;
 
-    use parse::FullInstruction;
-
     use super::*;
 
     type LineNum = usize;
 
-    #[derive(Debug)]
-    pub enum Statement {
-        Load(Address),
-        And(Address),
-        Xor(Address),
-        Or(Address),
-        Add(Address),
-        Sub(Address),
-        Store(Address),
-        Jump(LineNum),
-        Literal(Literal),
+    pub struct AstFinal {
+        statements: Vec<Statement<LineNum>>,
     }
 
-    pub struct StatementSequence {
-        statements: Vec<Statement>,
-    }
-
-    impl StatementSequence {
-        pub fn sequence(&self) -> &[Statement] {
+    impl AstFinal {
+        pub fn sequence(&self) -> &[Statement<LineNum>] {
             &self.statements
         }
 
@@ -248,40 +231,43 @@ pub mod flattened {
                 labels
             };
 
-            Self {
-                statements: ast
-                    .statements
-                    .into_iter()
-                    .map(|stat| {
-                        let stat = stat.statement;
-                        match stat {
-                            parse::Statement::Literal(val) => Statement::Literal(val),
-                            parse::Statement::InstrLine(FullInstruction::Load(a)) => {
-                                Statement::Load(a)
-                            }
-                            parse::Statement::InstrLine(FullInstruction::And(a)) => {
-                                Statement::And(a)
-                            }
-                            parse::Statement::InstrLine(FullInstruction::Xor(a)) => {
-                                Statement::Xor(a)
-                            }
-                            parse::Statement::InstrLine(FullInstruction::Or(a)) => Statement::Or(a),
-                            parse::Statement::InstrLine(FullInstruction::Add(a)) => {
-                                Statement::Add(a)
-                            }
-                            parse::Statement::InstrLine(FullInstruction::Sub(a)) => {
-                                Statement::Sub(a)
-                            }
-                            parse::Statement::InstrLine(FullInstruction::Store(a)) => {
-                                Statement::Store(a)
-                            }
-                            parse::Statement::InstrLine(FullInstruction::Jump(l)) => {
-                                Statement::Jump(line_labels[&l])
-                            }
+            let statements = ast
+                .statements
+                .into_iter()
+                .map(|stat| {
+                    let stat = stat.statement;
+                    // TODO: this is ridiculous
+                    match stat {
+                        Statement::InstrLine(Instruction::Jump(l)) => {
+                            Statement::InstrLine(Instruction::Jump(line_labels[&l]))
                         }
-                    })
-                    .collect(),
-            }
+                        Statement::Literal(l) => Statement::Literal(l),
+                        Statement::InstrLine(Instruction::Load(a)) => {
+                            Statement::InstrLine(Instruction::Load(a))
+                        }
+                        Statement::InstrLine(Instruction::And(a)) => {
+                            Statement::InstrLine(Instruction::And(a))
+                        }
+                        Statement::InstrLine(Instruction::Xor(a)) => {
+                            Statement::InstrLine(Instruction::Xor(a))
+                        }
+                        Statement::InstrLine(Instruction::Or(a)) => {
+                            Statement::InstrLine(Instruction::Or(a))
+                        }
+                        Statement::InstrLine(Instruction::Add(a)) => {
+                            Statement::InstrLine(Instruction::Add(a))
+                        }
+                        Statement::InstrLine(Instruction::Sub(a)) => {
+                            Statement::InstrLine(Instruction::Sub(a))
+                        }
+                        Statement::InstrLine(Instruction::Store(a)) => {
+                            Statement::InstrLine(Instruction::Store(a))
+                        }
+                    }
+                })
+                .collect();
+
+            Self { statements }
         }
     }
 }
