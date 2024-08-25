@@ -34,8 +34,11 @@ fn main() {
             println!("{:?}", oshug_assembler::lex::tokenize(&content));
         }
         Command::Parse {} => {
-            let mut tokens = oshug_assembler::lex::tokenize(&content).into_iter();
-            let program = oshug_assembler::parse::Ast::consume_token_stream(&mut tokens);
+            let mut tokens = oshug_assembler::lex::tokenize(&content)
+                .expect("tokenisation error")
+                .into_iter();
+            let program = oshug_assembler::parse::Ast::consume_token_stream(&mut tokens)
+                .expect("parse error");
             println!("{:?}", program);
         }
         Command::Assemble { output_file: _ } => todo!("assembler not implemented yet"),
