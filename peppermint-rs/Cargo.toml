@@ -1,0 +1,15 @@
+[package]
+name = "peppermint"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+logos = "0.14.1"
+strum = { version = "0.26.3", features = ["derive"] }
+thiserror = "1.0.63"
+
+[dev-dependencies]
+test-case = "3.3.1"
+
+[[test]]
+name = "parse_sample"

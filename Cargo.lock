@@ -167,14 +167,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "peppermint-cli"
+name = "peppermint"
 version = "0.1.0"
 dependencies = [
- "clap",
  "logos",
  "strum",
  "test-case",
  "thiserror",
+]
+
+[[package]]
+name = "peppermint-cli"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "peppermint",
 ]
 
 [[package]]
