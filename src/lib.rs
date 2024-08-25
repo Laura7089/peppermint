@@ -1,11 +1,14 @@
-type Word = u16;
+pub type DoubleWord = u16;
+pub type Word = u8;
+pub type Address = u8; // TODO: change me to u7
+pub type Literal = u16; // TODO: change me to u15
 
+// Tokenisation and lexing.
 pub mod lex {
-    use std::num::ParseIntError;
+    use super::*;
 
     use logos::Logos;
 
-    use super::Word;
     pub type Lexer<'a> = logos::Lexer<'a, Token>;
 
     pub fn tokenize(input: &str) -> Vec<Token> {
@@ -21,14 +24,26 @@ pub mod lex {
         Instruction(InstructionKind),
         #[regex(r"[;#][^\n]+")]
         Comment,
-        #[regex(r"\[[0-9]+\]", |lex| decimal(debracket(lex.slice())).ok())]
-        #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| hexadecimal(debracket(lex.slice())).ok())]
-        #[regex(r"\[0b[01]+\]", |lex| binary(debracket(lex.slice())).ok())]
-        Address(Word),
-        #[regex(r"[0-9]+", |lex| decimal(lex.slice()).ok())]
-        #[regex(r"0x[0-9a-zA-Z]+", |lex| hexadecimal(lex.slice()).ok())]
-        #[regex(r"0b[01]+", |lex| binary(lex.slice()).ok())]
-        Literal(Word),
+        #[regex(r"\[[0-9]+\]", |lex| {
+            Address::from_str_radix(debracket(lex.slice()), 10).ok()
+        })]
+        #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| {
+            Address::from_str_radix(debracket(strip_radix_prefix(lex.slice())), 16).ok()
+        })]
+        #[regex(r"\[0b[01]+\]", |lex| {
+            Address::from_str_radix(debracket(strip_radix_prefix(lex.slice())), 2).ok()
+        })]
+        Address(Address),
+        #[regex(r"[0-9]+", |lex| {
+            Literal::from_str_radix(lex.slice(), 10).ok()
+        })]
+        #[regex(r"0x[0-9a-zA-Z]+", |lex| {
+            Literal::from_str_radix(strip_radix_prefix(lex.slice()), 16).ok()
+        })]
+        #[regex(r"0b[01]+", |lex| {
+            Literal::from_str_radix(strip_radix_prefix(lex.slice()), 2).ok()
+        })]
+        Literal(Literal),
         #[regex(r":[a-zA-Z][a-zA-Z_-]*", |lex| lex.slice()[1..].to_string())]
         Label(String),
         #[regex(r"[a-zA-Z][a-zA-Z_-]*:", |lex| {
@@ -59,18 +74,6 @@ pub mod lex {
         &input[2..]
     }
 
-    fn decimal(input: &str) -> Result<Word, ParseIntError> {
-        Word::from_str_radix(input, 10)
-    }
-
-    fn hexadecimal(input: &str) -> Result<Word, ParseIntError> {
-        Word::from_str_radix(strip_radix_prefix(input), 16)
-    }
-
-    fn binary(input: &str) -> Result<Word, ParseIntError> {
-        Word::from_str_radix(strip_radix_prefix(input), 2)
-    }
-
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -91,13 +94,14 @@ pub mod lex {
     }
 }
 
+// AST construction.
 pub mod parse {
     use super::*;
     use lex::Token;
 
     #[derive(Debug)]
     pub struct Ast {
-        statements: Vec<LabelledStatement>,
+        pub statements: Vec<LabelledStatement>,
     }
 
     impl Ast {
@@ -114,8 +118,8 @@ pub mod parse {
 
     #[derive(Debug)]
     pub struct LabelledStatement {
-        label: Option<String>,
-        statement: Statement,
+        pub label: Option<String>,
+        pub statement: Statement,
     }
 
     impl LabelledStatement {
@@ -175,18 +179,18 @@ pub mod parse {
     #[derive(Debug)]
     pub enum Statement {
         InstrLine(FullInstruction),
-        Literal(Word),
+        Literal(Literal),
     }
 
     #[derive(Debug)]
     pub enum FullInstruction {
-        Load(Word),
-        And(Word),
-        Xor(Word),
-        Or(Word),
-        Add(Word),
-        Sub(Word),
-        Store(Word),
+        Load(Address),
+        And(Address),
+        Xor(Address),
+        Or(Address),
+        Add(Address),
+        Sub(Address),
+        Store(Address),
         Jump(String),
     }
 }
