@@ -44,7 +44,8 @@ JUMP :loop
 	(statement (literal))
 	(statement (instruction
 		(opcode) (operand (address))))
-	(statement (label) (instruction
+	(label)
+	(statement (instruction
 		(opcode) (operand (address))))
 	(statement (instruction
 		(opcode) (operand (label_jump))))

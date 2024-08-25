@@ -9,7 +9,8 @@ label1: LOAD [0b11010]
 
 (source_file
 	(comment)
-	(statement (label) (instruction
+	(label)
+	(statement (instruction
 		(opcode) (operand (address)))))
 
 ===
@@ -25,15 +26,6 @@ JUMP :another-label
 		(opcode) (operand (label_jump)))))
 
 ===
-Two Labels
-:error
-===
-
-label1: illegal-inner-label: LOAD [10]
-
-----
-
-===
 Label after Instruction
 ===
 
@@ -45,6 +37,7 @@ loop: ADD [0x110]
 (source_file
 	(statement (instruction 
 		(opcode) (operand (address))))
-	(statement (label) (instruction
+	(label)
+	(statement (instruction
 		(opcode) (operand (address))))
 	)

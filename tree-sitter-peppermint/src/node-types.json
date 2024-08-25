@@ -5,11 +5,6 @@
     "fields": {}
   },
   {
-    "type": "comment",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "instruction",
     "named": true,
     "fields": {},
@@ -27,16 +22,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "label",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "label_jump",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "literal",
@@ -71,7 +56,7 @@
       "required": false,
       "types": [
         {
-          "type": "comment",
+          "type": "label",
           "named": true
         },
         {
@@ -86,15 +71,11 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": true,
+      "multiple": false,
       "required": true,
       "types": [
         {
           "type": "instruction",
-          "named": true
-        },
-        {
-          "type": "label",
           "named": true
         },
         {
@@ -105,24 +86,24 @@
     }
   },
   {
-    "type": "#",
-    "named": false
-  },
-  {
-    "type": ":",
-    "named": false
-  },
-  {
-    "type": ";",
-    "named": false
-  },
-  {
     "type": "[",
     "named": false
   },
   {
     "type": "]",
     "named": false
+  },
+  {
+    "type": "comment",
+    "named": true
+  },
+  {
+    "type": "label",
+    "named": true
+  },
+  {
+    "type": "label_jump",
+    "named": true
   },
   {
     "type": "opcode",

@@ -5,30 +5,24 @@ module.exports = grammar({
   name: 'peppermint',
 
   rules: {
-    source_file: $ => repeat($._object),
-
-    _object: $ => choice(
+    source_file: $ => repeat(choice(
       $.statement,
-      $._whitespace,
-      $.comment,
-    ),
+      $.label,
+    )),
 
     _whitespace: $ => /[ \t\n]+/,
 
     statement: $ => seq(
-      optional($.label),
       choice(
         $.instruction,
         $.literal,
       ),
     ),
 
-    comment: $ => seq(choice(';', '#'), $._comment_text),
-    _comment_text: $ => /[^\n]*/,
+    comment: $ => /[;#][^\n]*/,
 
     instruction: $ => seq(
       $.opcode,
-      $._whitespace,
       $.operand,
     ),
 
@@ -42,8 +36,15 @@ module.exports = grammar({
     address: $ => seq('[', $._number, ']'),
     _number: $ => /(0[xb])?[0-9a-fA-F]+/,
 
-    label: $ => seq($._label_name, ':'),
-    label_jump: $ => seq(':', $._label_name),
-    _label_name: $ => /[a-zA-Z][a-zA-Z0-9\-_]+/,
-  }
+    // TODO: this is pretty horrible repetition
+    label: $ => /[a-zA-Z][a-zA-Z0-9\-_]*:/,
+    label_jump: $ => /:[a-zA-Z][a-zA-Z0-9\-_]*/,
+  },
+
+  word: $ => $.opcode,
+
+  extras: $ => [
+    $.comment,
+    $._whitespace,
+  ],
 });
