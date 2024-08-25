@@ -1,48 +1,70 @@
-// TODO: good error handling
+//! Peppermint parsing, assembling and emulation.
+#![warn(clippy::pedantic)]
+#![deny(missing_docs)]
 
 use thiserror::Error;
 
-pub type DoubleWord = u16;
+/// One memory word.
 pub type Word = u8;
+/// Two memory words.
+pub type DoubleWord = u16;
+/// Memory address.
 pub type Address = u8; // TODO: change me to u7
+/// Literal integer.
 pub type Literal = u16; // TODO: change me to u15
 
+/// Error originating from malformed input.
 #[derive(Debug, Error, PartialEq, Default, Clone)]
 pub enum ParseError {
     #[error("invalid token")]
     #[default]
+    /// Encountered unrecognised token.
     InvalidToken,
     #[error("duplicate label in source code")]
+    /// Non-unique label value in source code.
     DuplicateLabel,
     #[error("unexpected end of file")]
+    /// EOF encountered unexpectedly.
     EndOfFile,
     #[error("expected token")]
+    /// Wrong kind of token for this context.
     UnexpectedToken,
     #[error("wrong operand type")]
+    /// Wrong kind of operand for this context.
     BadOperand,
 }
 
-pub type Result<T> = std::result::Result<T, ParseError>;
+type Result<T> = std::result::Result<T, ParseError>;
 
-// Tokenisation and lexing.
+/// Tokenisation and lexing.
+// TODO: replace with tree-sitter
 pub mod lex {
     use super::*;
 
     use logos::Logos;
 
+    /// Peppermint lexer.
     pub type Lexer<'a> = logos::Lexer<'a, Token>;
 
+    /// Fully run tokenisation on source code.
+    ///
+    /// Runs until EOF.
     pub fn tokenize(input: &str) -> Result<Vec<Token>> {
         Token::lexer(input).collect::<Result<Vec<_>>>()
     }
 
+    /// One [lexical token](https://en.wikipedia.org/wiki/Lexical_token#Lexical_token_and_lexical_tokenization) in Peppermint.
     #[derive(Logos, Debug, Clone, PartialEq)]
     #[logos(skip r"[ \t\n\f]+")]
     #[logos(error = ParseError)]
     pub enum Token {
         #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().ok())]
+        /// Instruction opcode.
         Instruction(InstructionKind),
         #[regex(r"[;#][^\n]+")]
+        /// Code comment.
+        ///
+        /// Ignored for most purposes.
         Comment,
         #[regex(r"\[[0-9]+\]", |lex| {
             Address::from_str_radix(debracket(lex.slice()), 10).ok()
@@ -53,6 +75,7 @@ pub mod lex {
         #[regex(r"\[0b[01]+\]", |lex| {
             Address::from_str_radix(debracket(strip_radix_prefix(lex.slice())), 2).ok()
         })]
+        /// Address literal.
         Address(Address),
         #[regex(r"[0-9]+", |lex| {
             Literal::from_str_radix(lex.slice(), 10).ok()
@@ -63,18 +86,23 @@ pub mod lex {
         #[regex(r"0b[01]+", |lex| {
             Literal::from_str_radix(strip_radix_prefix(lex.slice()), 2).ok()
         })]
+        /// Integer literal.
         Literal(Literal),
         #[regex(r":[a-zA-Z][a-zA-Z_\-0-9]*", |lex| lex.slice()[1..].to_string())]
+        /// Target label for a jump instruction.
         JumpLabel(String),
         #[regex(r"[a-zA-Z][a-zA-Z_\-0-9]*:", |lex| {
             let slice = lex.slice();
             slice[0..(slice.len() - 1)].to_string()
         })]
+        /// Label.
         Label(String),
     }
 
     #[derive(Debug, Clone, strum::EnumString, PartialEq, Eq)]
     #[strum(ascii_case_insensitive)]
+    #[allow(missing_docs)]
+    /// Kind of instruction opcode.
     pub enum InstructionKind {
         Load,
         And,
@@ -115,13 +143,20 @@ pub mod lex {
     }
 }
 
+/// Statement in Peppermint.
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub enum Statement<L> {
     InstrLine(Instruction<L>),
     Literal(Literal),
 }
 
+/// Instruction w/ opcode in Peppermint.
+///
+/// Generic over how the `jump` instruction refers to labels.
+/// This is to reduce code duplication between parsing and finalisation steps.
 #[derive(Debug)]
+#[allow(missing_docs)]
 pub enum Instruction<L> {
     Load(Address),
     And(Address),
@@ -133,17 +168,23 @@ pub enum Instruction<L> {
     Jump(L),
 }
 
-// AST construction.
+/// AST construction.
 pub mod parse {
     use super::*;
     use lex::Token;
 
     #[derive(Debug)]
+    /// Parsed Abstract Syntax Tree.
+    ///
+    /// In peppermint this isn't really much of a tree owing to the non-recursive nature of the language's syntax.
+    /// Note that the AST does not include comments.
     pub struct Ast {
+        /// The sequence of statements which make up the AST.
         pub statements: Vec<LabelledStatement>,
     }
 
     impl Ast {
+        /// Completely consume `stream`, parsing tokens into an AST (`Self`).
         pub fn consume_token_stream(stream: &mut impl Iterator<Item = Token>) -> Result<Self> {
             let mut statements = Vec::new();
             while let Some(stat) = LabelledStatement::take_from_token_stream(stream)? {
@@ -153,13 +194,20 @@ pub mod parse {
         }
     }
 
+    /// Statement with an optional label.
+    ///
+    /// Note that label locations are not finalised here; hence, we're using `String` as the label type in [`Statement`].
     #[derive(Debug)]
+    #[allow(missing_docs)]
     pub struct LabelledStatement {
         pub label: Option<String>,
         pub statement: Statement<String>,
     }
 
     impl LabelledStatement {
+        /// Take the next (labelled) statement from `stream`.
+        ///
+        /// Mutates `stream`, leaving everything after the next (valid) statement.
         pub fn take_from_token_stream(
             stream: &mut impl Iterator<Item = Token>,
         ) -> Result<Option<Self>> {
@@ -226,16 +274,23 @@ pub mod flattened {
 
     type LineNum = usize;
 
+    /// Abstract Syntax Tree with labels finalised.
+    ///
+    /// Labels index into the AST statement list.
+    ///
+    /// To uphold the correctness of labels, this type does not allow mutation; if you want to inspect the statements then call [`Self::statements`].
     #[derive(Debug)]
     pub struct AstFinal {
         statements: Vec<Statement<LineNum>>,
     }
 
     impl AstFinal {
-        pub fn sequence(&self) -> &[Statement<LineNum>] {
+        /// Read-only reference to internal statement list/AST.
+        pub fn statements(&self) -> &[Statement<LineNum>] {
             &self.statements
         }
 
+        /// Consume a non-finalised [`parse::Ast`] and make the labels absolute.
         pub fn from_ast(ast: parse::Ast) -> Result<Self> {
             // mapping from label names -> line numbers
             let line_labels = {
@@ -296,6 +351,7 @@ pub mod flattened {
     }
 }
 
+/// Fully parse source code into final syntax tree.
 pub fn parse_final(input: &str) -> Result<flattened::AstFinal> {
     let mut tokens = lex::tokenize(&input)?.into_iter();
     let program = parse::Ast::consume_token_stream(&mut tokens)?;
