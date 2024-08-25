@@ -203,6 +203,7 @@ pub mod flattened {
 
     type LineNum = usize;
 
+    #[derive(Debug)]
     pub struct AstFinal {
         statements: Vec<Statement<LineNum>>,
     }
@@ -270,4 +271,10 @@ pub mod flattened {
             Self { statements }
         }
     }
+}
+
+pub fn parse_final(input: &str) -> flattened::AstFinal {
+    let mut tokens = lex::tokenize(&input).into_iter();
+    let program = parse::Ast::consume_token_stream(&mut tokens);
+    flattened::AstFinal::from_ast(program)
 }
