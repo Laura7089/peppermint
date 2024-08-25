@@ -4,4 +4,5 @@ resolver = "2"
 members = [
   "cli",
   "peppermint-rs",
+  "tree-sitter-peppermint",
 ]

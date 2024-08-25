@@ -11,5 +11,8 @@ thiserror = "1.0.63"
 [dev-dependencies]
 test-case = "3.3.1"
 
+[build-dependencies]
+cc = "*"
+
 [[test]]
 name = "parse_sample"
