@@ -1,3 +1,5 @@
+// TODO: good error handling
+
 pub type DoubleWord = u16;
 pub type Word = u8;
 pub type Address = u8; // TODO: change me to u7
@@ -192,5 +194,94 @@ pub mod parse {
         Sub(Address),
         Store(Address),
         Jump(String),
+    }
+}
+
+/// Final program representation.
+pub mod flattened {
+    use std::collections::HashMap;
+
+    use parse::FullInstruction;
+
+    use super::*;
+
+    type LineNum = usize;
+
+    #[derive(Debug)]
+    pub enum Statement {
+        Load(Address),
+        And(Address),
+        Xor(Address),
+        Or(Address),
+        Add(Address),
+        Sub(Address),
+        Store(Address),
+        Jump(LineNum),
+        Literal(Literal),
+    }
+
+    pub struct StatementSequence {
+        statements: Vec<Statement>,
+    }
+
+    impl StatementSequence {
+        pub fn sequence(&self) -> &[Statement] {
+            &self.statements
+        }
+
+        pub fn from_ast(ast: parse::Ast) -> Self {
+            // mapping from label names -> line numbers
+            let line_labels = {
+                let mut labels: HashMap<String, usize> = HashMap::new();
+                let statement_labels = ast
+                    .statements
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, stat)| stat.label.as_ref().map(|label| (i, label.clone())));
+                for (i, label) in statement_labels {
+                    if !labels.contains_key(&label) {
+                        labels.insert(label, i);
+                    } else {
+                        panic!("duplicate label: {label}");
+                    }
+                }
+                labels
+            };
+
+            Self {
+                statements: ast
+                    .statements
+                    .into_iter()
+                    .map(|stat| {
+                        let stat = stat.statement;
+                        match stat {
+                            parse::Statement::Literal(val) => Statement::Literal(val),
+                            parse::Statement::InstrLine(FullInstruction::Load(a)) => {
+                                Statement::Load(a)
+                            }
+                            parse::Statement::InstrLine(FullInstruction::And(a)) => {
+                                Statement::And(a)
+                            }
+                            parse::Statement::InstrLine(FullInstruction::Xor(a)) => {
+                                Statement::Xor(a)
+                            }
+                            parse::Statement::InstrLine(FullInstruction::Or(a)) => Statement::Or(a),
+                            parse::Statement::InstrLine(FullInstruction::Add(a)) => {
+                                Statement::Add(a)
+                            }
+                            parse::Statement::InstrLine(FullInstruction::Sub(a)) => {
+                                Statement::Sub(a)
+                            }
+                            parse::Statement::InstrLine(FullInstruction::Store(a)) => {
+                                Statement::Store(a)
+                            }
+                            parse::Statement::InstrLine(FullInstruction::Jump(l)) => {
+                                Statement::Jump(line_labels[&l])
+                            }
+                        }
+                    })
+                    .collect(),
+            }
+        }
     }
 }
