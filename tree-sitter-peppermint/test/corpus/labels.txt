@@ -32,3 +32,19 @@ Two Labels
 label1: illegal-inner-label: LOAD [10]
 
 ----
+
+===
+Label after Instruction
+===
+
+STORE [0x100]
+loop: ADD [0x110]
+
+---
+
+(source_file
+	(statement (instruction 
+		(opcode) (operand (address))))
+	(statement (label) (instruction
+		(opcode) (operand (address))))
+	)
