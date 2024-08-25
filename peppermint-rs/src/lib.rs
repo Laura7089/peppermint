@@ -1,6 +1,8 @@
 //! Peppermint parsing, assembling and emulation.
+// TODO: use workspace Cargo.toml to define lints
 #![warn(clippy::pedantic)]
 #![deny(missing_docs)]
+#![allow(clippy::wildcard_imports)]
 
 use thiserror::Error;
 
@@ -280,7 +282,7 @@ pub mod parse {
 
 /// Final program representation.
 pub mod flattened {
-    use std::collections::HashMap;
+    use std::collections::{hash_map::Entry, HashMap};
 
     use super::*;
 
@@ -298,6 +300,7 @@ pub mod flattened {
 
     impl AstFinal {
         /// Read-only reference to internal statement list/AST.
+        #[must_use]
         pub fn statements(&self) -> &[Statement<LineNum>] {
             &self.statements
         }
@@ -311,16 +314,16 @@ pub mod flattened {
             // mapping from label names -> line numbers
             let line_labels = {
                 let mut labels: HashMap<String, usize> = HashMap::new();
-                let statement_labels = ast
-                    .statements
-                    .iter()
-                    .enumerate()
-                    .flat_map(|(i, stat)| stat.label.as_ref().map(|label| (i, label.clone())));
+                let statement_labels =
+                    ast.statements.iter().enumerate().filter_map(|(i, stat)| {
+                        stat.label.as_ref().map(|label| (i, label.clone()))
+                    });
                 for (i, label) in statement_labels {
-                    if !labels.contains_key(&label) {
-                        labels.insert(label, i);
-                    } else {
-                        return Err(ParseError::DuplicateLabel);
+                    match labels.entry(label) {
+                        ent @ Entry::Vacant(_) => {
+                            ent.or_insert(i);
+                        }
+                        Entry::Occupied(_) => return Err(ParseError::DuplicateLabel),
                     }
                 }
                 labels
@@ -373,7 +376,7 @@ pub mod flattened {
 ///
 /// May throw any [`ParseError`] from any stage of parsing.
 pub fn parse_final(input: &str) -> Result<flattened::AstFinal> {
-    let mut tokens = lex::tokenize(&input)?.into_iter();
+    let mut tokens = lex::tokenize(input)?.into_iter();
     let program = parse::Ast::consume_token_stream(&mut tokens)?;
     flattened::AstFinal::from_ast(program)
 }
