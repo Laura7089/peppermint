@@ -14,7 +14,7 @@
 //! ";
 //!
 //! let parsed = peppermint::parse_final(my_program).unwrap();
-//! let mut sim: TickTalk<100> = TickTalk::new(&parsed);
+//! let mut sim = TickTalk::new(&parsed, 100);
 //! sim.run_to_completion().unwrap();
 //!
 //! assert_eq!(sim.memory[0x20], 15);
@@ -22,6 +22,8 @@
 //! ```
 #![warn(clippy::pedantic)]
 #![deny(missing_docs)]
+
+use std::ops::DerefMut;
 
 use peppermint::{Address, DoubleWord, Instruction, Statement};
 use thiserror::Error;
@@ -32,9 +34,9 @@ type Program = peppermint::flattened::AstFinal;
 ///
 /// Represents the state of a Tick Talk machine as a program runs on it.
 #[derive(Clone)]
-pub struct TickTalk<'a, const MEM_SIZE: usize> {
+pub struct TickTalk<'a, M> {
     /// Memory of the system.
-    pub memory: [peppermint::DoubleWord; MEM_SIZE],
+    pub memory: M,
     /// Program code that the system is executing.
     pub program: &'a Program,
     /// Program counter "register".
@@ -51,14 +53,28 @@ pub enum Error {
     AccessOutOfBounds,
 }
 
-impl<'a, const MEM_SIZE: usize> TickTalk<'a, MEM_SIZE> {
+impl<'a> TickTalk<'a, Vec<DoubleWord>> {
     /// Create a new simulator and load a program into it.
     ///
     /// To parse into a program, see [`peppermint::parse_final`].
-    pub fn new(program: &'a Program) -> Self {
+    pub fn new(program: &'a Program, memory_size: usize) -> Self {
         Self {
             program,
-            memory: [0; MEM_SIZE],
+            memory: vec![0; memory_size],
+            program_counter: 0,
+            accumulator: 0,
+        }
+    }
+}
+
+impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
+    /// Create a new simulator and load a program into it with an external memory buffer.
+    ///
+    /// To parse into a program, see [`peppermint::parse_final`].
+    pub fn with_external_mem(program: &'a Program, memory: M) -> Self {
+        Self {
+            program,
+            memory,
             program_counter: 0,
             accumulator: 0,
         }
@@ -145,7 +161,7 @@ mod tests {
         STORE [0x00]";
 
         let program = peppermint::parse_final(source).expect("parse error");
-        let mut sim: TickTalk<10> = TickTalk::new(&program);
+        let mut sim = TickTalk::new(&program, 10);
         sim.run_to_completion().expect("simulation error");
 
         assert_eq!(sim.memory[0x00], 11);
