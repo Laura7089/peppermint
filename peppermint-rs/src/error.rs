@@ -1,6 +1,7 @@
 //! Parsing error reporting.
 
 use std::ops::Range;
+use thiserror::Error;
 
 /// Nature of error in malformed input.
 #[derive(Debug, PartialEq, Default, Clone)]
@@ -27,7 +28,8 @@ pub enum ErrorKind {
 pub type Span = Range<usize>;
 
 /// Error originating from malformed input.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
+#[error("parse error of kind {kind:?} at input span {span:?}")]
 pub struct Error {
     kind: ErrorKind,
     span: Span,
