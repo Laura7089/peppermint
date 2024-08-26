@@ -68,48 +68,40 @@ impl LabelledStatement {
     fn take_from_token_stream(
         stream: &mut impl Iterator<Item = (Token, error::Span)>,
     ) -> Result<Option<Self>, error::ParseError> {
-        // filter out comments
-        // TODO: do this somewhere higher up the stack
-        let mut stream = stream.filter(|(t, _s)| t != &Token::Comment);
+        let Some(next_token) = stream.next() else {
+            return Ok(None);
+        };
+
+        // get the statement token out by stripping out the potential label
         let mut label = None;
+        let statement_token = if let (Token::Label(name), span) = next_token {
+            label = Some(name);
+            stream
+                .next()
+                .ok_or(error::ParseError::new(ParseErrorKind::EndOfFile, span))?
+        } else {
+            next_token
+        };
 
-        let statement_token = {
-            let Some(next_token) = stream.next() else {
-                // stream is depleted
-                return Ok(None);
-            };
-            // get the statement token out by stripping out the potential label
-            if let (Token::Label(name), span) = next_token {
-                label = Some(name);
-                stream
-                    .next()
-                    .ok_or(error::ParseError::new(ParseErrorKind::EndOfFile, span))?
-            } else {
-                next_token
+        let (opcode, operand, op_span) = match statement_token {
+            // check for literals
+            (Token::Literal(val), _) => {
+                return Ok(Some(Self {
+                    label,
+                    statement: Statement::Literal(val),
+                }))
             }
-        };
-
-        // check for literals
-        if let (Token::Literal(val), _) = statement_token {
-            return Ok(Some(Self {
-                label,
-                statement: Statement::Literal(val),
-            }));
-        }
-
-        // now we only have instructions left to handle
-        let (Token::Instruction(instr_type), _) = statement_token else {
+            // now we only have instructions left to handle
+            (Token::Instruction(instr_type), span) => match stream.next() {
+                Some((operand, op_span)) => Ok((instr_type, operand, op_span)),
+                None => Err(ParseError::new(ParseErrorKind::EndOfFile, span)),
+            },
             // if it's not an instruction token then the code is malformed
-            return Err(ParseError::new(
-                ParseErrorKind::EndOfFile,
-                statement_token.1,
-            ));
-        };
+            // we don't expect to run into comments because they're ignored by the lexer
+            (_, span) => Err(ParseError::new(ParseErrorKind::InvalidToken, span)),
+        }?;
 
-        let Some((operand, span)) = stream.next() else {
-            return Err(ParseError::new_no_span(ParseErrorKind::EndOfFile));
-        };
-        let full_inst = match (instr_type, operand) {
+        let full_inst = match (opcode, operand) {
             (InstructionKind::Load, Token::Address(addr)) => Instruction::Load(addr),
             (InstructionKind::And, Token::Address(addr)) => Instruction::And(addr),
             (InstructionKind::Xor, Token::Address(addr)) => Instruction::Xor(addr),
@@ -118,7 +110,7 @@ impl LabelledStatement {
             (InstructionKind::Sub, Token::Address(addr)) => Instruction::Sub(addr),
             (InstructionKind::Store, Token::Address(addr)) => Instruction::Store(addr),
             (InstructionKind::Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
-            _ => return Err(ParseError::new(ParseErrorKind::BadOperand, span)),
+            _ => return Err(ParseError::new(ParseErrorKind::BadOperand, op_span)),
         };
 
         Ok(Some(Self {
