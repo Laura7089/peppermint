@@ -22,6 +22,9 @@ pub enum ParseError {
     #[default]
     /// Encountered unrecognised token.
     InvalidToken,
+    #[error("invalid integer literal")]
+    /// Invalid integer literal.
+    MalformedInteger,
     #[error("duplicate label in source code")]
     /// Non-unique label value in source code.
     DuplicateLabel,
@@ -43,6 +46,7 @@ pub mod lex {
     use super::*;
 
     use logos::Logos;
+    use num_traits::Num;
 
     /// Peppermint lexer.
     pub type Lexer<'a> = logos::Lexer<'a, Token>;
@@ -66,31 +70,19 @@ pub mod lex {
         #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().ok())]
         /// Instruction opcode.
         Instruction(InstructionKind),
-        #[regex(r"[;#][^\n]+")]
+        #[regex(r"[;#][^\n]+", logos::skip)]
         /// Code comment.
         ///
         /// Ignored for most purposes.
         Comment,
-        #[regex(r"\[[0-9]+\]", |lex| {
-            Address::from_str_radix(debracket(lex.slice()), 10).ok()
-        })]
-        #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| {
-            Address::from_str_radix(debracket(strip_radix_prefix(lex.slice())), 16).ok()
-        })]
-        #[regex(r"\[0b[01]+\]", |lex| {
-            Address::from_str_radix(debracket(strip_radix_prefix(lex.slice())), 2).ok()
-        })]
+        #[regex(r"\[[0-9]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 10))]
+        #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 16))]
+        #[regex(r"\[0b[01]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 2))]
         /// Address literal.
         Address(Address),
-        #[regex(r"[0-9]+", |lex| {
-            Literal::from_str_radix(lex.slice(), 10).ok()
-        })]
-        #[regex(r"0x[0-9a-zA-Z]+", |lex| {
-            Literal::from_str_radix(strip_radix_prefix(lex.slice()), 16).ok()
-        })]
-        #[regex(r"0b[01]+", |lex| {
-            Literal::from_str_radix(strip_radix_prefix(lex.slice()), 2).ok()
-        })]
+        #[regex(r"[0-9]+", |lex| parse_int::<Literal>(lex.slice(), 10))]
+        #[regex(r"0x[0-9a-zA-Z]+", |lex| parse_int::<Literal>(lex.slice(), 16))]
+        #[regex(r"0b[01]+", |lex| parse_int::<Literal>(lex.slice(), 2))]
         /// Integer literal.
         Literal(Literal),
         #[regex(r":[a-zA-Z][a-zA-Z_\-0-9]*", |lex| lex.slice()[1..].to_string())]
@@ -123,8 +115,13 @@ pub mod lex {
         &input[1..(input.len() - 1)]
     }
 
-    fn strip_radix_prefix(input: &str) -> &str {
-        &input[2..]
+    fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I> {
+        let raw = match radix {
+            2 | 16 => &raw[2..],
+            _ => raw,
+        };
+
+        I::from_str_radix(raw, radix).map_err(|_| ParseError::MalformedInteger)
     }
 
     #[cfg(test)]
