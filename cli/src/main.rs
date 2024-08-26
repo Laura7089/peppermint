@@ -31,10 +31,10 @@ fn main() {
 
     match opt.command {
         Command::Tokenise {} => {
-            println!("{:?}", peppermint::lex::tokenize(&content));
+            println!("{:?}", peppermint::lex::tokenise(&content));
         }
         Command::Parse {} => {
-            let mut tokens = peppermint::lex::tokenize(&content)
+            let mut tokens = peppermint::lex::tokenise(&content)
                 .expect("tokenisation error")
                 .into_iter();
             let program =

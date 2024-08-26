@@ -4,8 +4,10 @@
 #![deny(missing_docs)]
 #![allow(clippy::wildcard_imports)]
 
-use std::collections::{hash_map::Entry, HashMap};
-use thiserror::Error;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    ops::Range,
+};
 
 /// One memory word.
 pub type Word = u8;
@@ -17,34 +19,34 @@ pub type Address = u8; // TODO: change me to u7
 pub type Literal = u16; // TODO: change me to u15
 type LineNum = usize;
 
-/// Error originating from malformed input.
-#[derive(Debug, Error, PartialEq, Default, Clone)]
-pub enum ParseError {
-    #[error("invalid token")]
+/// Nature of error in malformed input.
+#[derive(Debug, PartialEq, Default, Clone)]
+pub enum ParseErrorKind {
     #[default]
     /// Encountered unrecognised token.
     InvalidToken,
-    #[error("invalid integer literal")]
     /// Invalid integer literal.
     MalformedInteger,
-    #[error("duplicate label in source code")]
     /// Non-unique label value in source code.
     DuplicateLabel,
-    #[error("unexpected end of file")]
     /// EOF encountered unexpectedly.
     EndOfFile,
-    #[error("expected token")]
     /// Wrong kind of token for this context.
     UnexpectedToken,
-    #[error("wrong operand type")]
     /// Wrong kind of operand for this context.
     BadOperand,
-    #[error("unknown instruction")]
     /// Unknown instruction opcode.
     UnknownInstruction,
 }
 
-type Result<T> = std::result::Result<T, ParseError>;
+type Span = Range<usize>;
+
+/// Error originating from malformed input.
+#[derive(Debug, Clone)]
+pub struct ParseError {
+    kind: ParseErrorKind,
+    span: Option<Span>,
+}
 
 /// Tokenisation and lexing.
 pub mod lex {
@@ -56,24 +58,13 @@ pub mod lex {
     /// Peppermint lexer.
     pub type Lexer<'a> = logos::Lexer<'a, Token>;
 
-    /// Fully run tokenisation on source code.
-    ///
-    /// Runs until EOF.
-    ///
-    /// # Errors
-    ///
-    /// Throws [`ParseError::InvalidToken`] if a malformed token is found.
-    pub fn tokenize(input: &str) -> Result<Vec<Token>> {
-        Token::lexer(input).collect::<Result<Vec<_>>>()
-    }
-
     /// One [lexical token](https://en.wikipedia.org/wiki/Lexical_token#Lexical_token_and_lexical_tokenization) in Peppermint.
     #[derive(Logos, Debug, Clone, PartialEq)]
     #[logos(skip r"[ \t\n\f]+")]
-    #[logos(error = ParseError)]
+    #[logos(error = ParseErrorKind)]
     pub enum Token {
         /// Instruction opcode.
-        #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| ParseError::UnknownInstruction))]
+        #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| ParseErrorKind::UnknownInstruction))]
         Instruction(InstructionKind),
         /// Code comment.
         ///
@@ -101,6 +92,20 @@ pub mod lex {
         Label(String),
     }
 
+    /// Tokenise a source code string.
+    pub fn tokenise(input: &str) -> Result<Vec<(Token, Span)>, ParseError> {
+        Token::lexer(input)
+            .spanned()
+            .map(|(res, span)| {
+                let span_again = span.clone();
+                res.map(|tok| (tok, span)).map_err(|kind| ParseError {
+                    kind,
+                    span: Some(span_again),
+                })
+            })
+            .collect()
+    }
+
     /// Kind of instruction opcode.
     #[derive(Debug, Clone, strum::EnumString, PartialEq, Eq)]
     #[strum(ascii_case_insensitive)]
@@ -120,13 +125,13 @@ pub mod lex {
         &input[1..(input.len() - 1)]
     }
 
-    fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I> {
+    fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, ParseErrorKind> {
         let raw = match radix {
             2 | 16 => &raw[2..],
             _ => raw,
         };
 
-        I::from_str_radix(raw, radix).map_err(|_| ParseError::MalformedInteger)
+        I::from_str_radix(raw, radix).map_err(|_| ParseErrorKind::MalformedInteger)
     }
 
     #[cfg(test)]
@@ -196,7 +201,9 @@ pub mod parse {
         /// # Errors
         ///
         /// See [`LabelledStatement::take_from_token_stream`].
-        pub fn consume_token_stream(stream: &mut impl Iterator<Item = Token>) -> Result<Self> {
+        pub fn consume_token_stream(
+            stream: &mut impl Iterator<Item = (Token, Span)>,
+        ) -> Result<Self, ParseError> {
             let mut statements = Vec::new();
             while let Some(stat) = LabelledStatement::take_from_token_stream(stream)? {
                 statements.push(stat);
@@ -224,28 +231,32 @@ pub mod parse {
         ///
         /// Can throw [`ParseError::EndOfFile`], [`ParseError::BadOperand`] or [`ParseError::InvalidToken]`.
         pub fn take_from_token_stream(
-            stream: &mut impl Iterator<Item = Token>,
-        ) -> Result<Option<Self>> {
+            stream: &mut impl Iterator<Item = (Token, Span)>,
+        ) -> Result<Option<Self>, ParseError> {
             // filter out comments
             // TODO: do this somewhere higher up the stack
-            let mut stream = stream.filter(|t| t != &Token::Comment);
+            let mut stream = stream.filter(|(t, _s)| t != &Token::Comment);
             let mut label = None;
 
             let statement_token = {
                 let Some(next_token) = stream.next() else {
+                    // stream is depleted
                     return Ok(None);
                 };
                 // get the statement token out by stripping out the potential label
-                if let Token::Label(name) = next_token {
+                if let (Token::Label(name), span) = next_token {
                     label = Some(name);
-                    stream.next().ok_or(ParseError::EndOfFile)?
+                    stream.next().ok_or(ParseError {
+                        kind: ParseErrorKind::EndOfFile,
+                        span: Some(span),
+                    })?
                 } else {
                     next_token
                 }
             };
 
             // check for literals
-            if let Token::Literal(val) = statement_token {
+            if let (Token::Literal(val), _) = statement_token {
                 return Ok(Some(Self {
                     label,
                     statement: Statement::Literal(val),
@@ -253,13 +264,19 @@ pub mod parse {
             }
 
             // now we only have instructions left to handle
-            let Token::Instruction(instr_type) = statement_token else {
+            let (Token::Instruction(instr_type), _) = statement_token else {
                 // if it's not an instruction token then the code is malformed
-                return Err(ParseError::EndOfFile);
+                return Err(ParseError {
+                    kind: ParseErrorKind::EndOfFile,
+                    span: Some(statement_token.1),
+                });
             };
 
-            let Some(operand) = stream.next() else {
-                return Err(ParseError::EndOfFile);
+            let Some((operand, span)) = stream.next() else {
+                return Err(ParseError {
+                    kind: ParseErrorKind::EndOfFile,
+                    span: None,
+                });
             };
             let full_inst = match (instr_type, operand) {
                 (lex::InstructionKind::Load, Token::Address(addr)) => Instruction::Load(addr),
@@ -270,7 +287,12 @@ pub mod parse {
                 (lex::InstructionKind::Sub, Token::Address(addr)) => Instruction::Sub(addr),
                 (lex::InstructionKind::Store, Token::Address(addr)) => Instruction::Store(addr),
                 (lex::InstructionKind::Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
-                _ => return Err(ParseError::BadOperand),
+                _ => {
+                    return Err(ParseError {
+                        kind: ParseErrorKind::BadOperand,
+                        span: Some(span),
+                    })
+                }
             };
 
             Ok(Some(Self {
@@ -304,7 +326,7 @@ impl Program {
     /// # Errors
     ///
     /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
-    pub fn from_ast(ast: parse::Ast) -> Result<Self> {
+    pub fn from_ast(ast: parse::Ast) -> Result<Self, ParseError> {
         // mapping from label names -> line numbers
         let line_labels = {
             let mut labels: HashMap<String, usize> = HashMap::new();
@@ -318,7 +340,12 @@ impl Program {
                     ent @ Entry::Vacant(_) => {
                         ent.or_insert(i);
                     }
-                    Entry::Occupied(_) => return Err(ParseError::DuplicateLabel),
+                    Entry::Occupied(_) => {
+                        return Err(ParseError {
+                            kind: ParseErrorKind::DuplicateLabel,
+                            span: None,
+                        })
+                    }
                 }
             }
             labels
@@ -369,8 +396,8 @@ impl Program {
 /// # Errors
 ///
 /// May throw any [`ParseError`] from any stage of parsing.
-pub fn parse_final(input: &str) -> Result<Program> {
-    let mut tokens = lex::tokenize(input)?.into_iter();
-    let program = parse::Ast::consume_token_stream(&mut tokens)?;
+pub fn parse_final(input: &str) -> Result<Program, ParseError> {
+    let tokens = lex::tokenise(input)?;
+    let program = parse::Ast::consume_token_stream(&mut tokens.into_iter())?;
     Program::from_ast(program)
 }
