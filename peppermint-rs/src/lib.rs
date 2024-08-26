@@ -4,6 +4,7 @@
 #![deny(missing_docs)]
 #![allow(clippy::wildcard_imports)]
 
+use std::collections::{hash_map::Entry, HashMap};
 use thiserror::Error;
 
 /// One memory word.
@@ -14,6 +15,7 @@ pub type DoubleWord = u16;
 pub type Address = u8; // TODO: change me to u7
 /// Literal integer.
 pub type Literal = u16; // TODO: change me to u15
+type LineNum = usize;
 
 /// Error originating from malformed input.
 #[derive(Debug, Error, PartialEq, Default, Clone)]
@@ -279,93 +281,86 @@ pub mod parse {
     }
 }
 
-/// Final program representation.
-pub mod flattened {
-    use std::collections::{hash_map::Entry, HashMap};
+/// Parsed and checked Peppermint program.
+///
+/// Abstract Syntax Tree with labels finalised.
+/// Labels index into the AST statement list.
+///
+/// To uphold the correctness of labels, this type does not allow mutation; if you want to inspect the statements then call [`Self::statements`].
+#[derive(Debug)]
+pub struct Program {
+    statements: Vec<Statement<LineNum>>,
+}
 
-    use super::*;
-
-    type LineNum = usize;
-
-    /// Abstract Syntax Tree with labels finalised.
-    ///
-    /// Labels index into the AST statement list.
-    ///
-    /// To uphold the correctness of labels, this type does not allow mutation; if you want to inspect the statements then call [`Self::statements`].
-    #[derive(Debug)]
-    pub struct AstFinal {
-        statements: Vec<Statement<LineNum>>,
+impl Program {
+    /// Read-only reference to internal statement list/AST.
+    #[must_use]
+    pub fn statements(&self) -> &[Statement<LineNum>] {
+        &self.statements
     }
 
-    impl AstFinal {
-        /// Read-only reference to internal statement list/AST.
-        #[must_use]
-        pub fn statements(&self) -> &[Statement<LineNum>] {
-            &self.statements
-        }
+    /// Consume a non-finalised [`parse::Ast`] and make the labels absolute.
+    ///
+    /// # Errors
+    ///
+    /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
+    pub fn from_ast(ast: parse::Ast) -> Result<Self> {
+        // mapping from label names -> line numbers
+        let line_labels = {
+            let mut labels: HashMap<String, usize> = HashMap::new();
+            let statement_labels = ast
+                .statements
+                .iter()
+                .enumerate()
+                .filter_map(|(i, stat)| stat.label.as_ref().map(|label| (i, label.clone())));
+            for (i, label) in statement_labels {
+                match labels.entry(label) {
+                    ent @ Entry::Vacant(_) => {
+                        ent.or_insert(i);
+                    }
+                    Entry::Occupied(_) => return Err(ParseError::DuplicateLabel),
+                }
+            }
+            labels
+        };
 
-        /// Consume a non-finalised [`parse::Ast`] and make the labels absolute.
-        ///
-        /// # Errors
-        ///
-        /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
-        pub fn from_ast(ast: parse::Ast) -> Result<Self> {
-            // mapping from label names -> line numbers
-            let line_labels = {
-                let mut labels: HashMap<String, usize> = HashMap::new();
-                let statement_labels =
-                    ast.statements.iter().enumerate().filter_map(|(i, stat)| {
-                        stat.label.as_ref().map(|label| (i, label.clone()))
-                    });
-                for (i, label) in statement_labels {
-                    match labels.entry(label) {
-                        ent @ Entry::Vacant(_) => {
-                            ent.or_insert(i);
-                        }
-                        Entry::Occupied(_) => return Err(ParseError::DuplicateLabel),
+        let statements = ast
+            .statements
+            .into_iter()
+            .map(|stat| {
+                let stat = stat.statement;
+                // TODO: this is ridiculous
+                match stat {
+                    Statement::InstrLine(Instruction::Jump(l)) => {
+                        Statement::InstrLine(Instruction::Jump(line_labels[&l]))
+                    }
+                    Statement::Literal(l) => Statement::Literal(l),
+                    Statement::InstrLine(Instruction::Load(a)) => {
+                        Statement::InstrLine(Instruction::Load(a))
+                    }
+                    Statement::InstrLine(Instruction::And(a)) => {
+                        Statement::InstrLine(Instruction::And(a))
+                    }
+                    Statement::InstrLine(Instruction::Xor(a)) => {
+                        Statement::InstrLine(Instruction::Xor(a))
+                    }
+                    Statement::InstrLine(Instruction::Or(a)) => {
+                        Statement::InstrLine(Instruction::Or(a))
+                    }
+                    Statement::InstrLine(Instruction::Add(a)) => {
+                        Statement::InstrLine(Instruction::Add(a))
+                    }
+                    Statement::InstrLine(Instruction::Sub(a)) => {
+                        Statement::InstrLine(Instruction::Sub(a))
+                    }
+                    Statement::InstrLine(Instruction::Store(a)) => {
+                        Statement::InstrLine(Instruction::Store(a))
                     }
                 }
-                labels
-            };
+            })
+            .collect();
 
-            let statements = ast
-                .statements
-                .into_iter()
-                .map(|stat| {
-                    let stat = stat.statement;
-                    // TODO: this is ridiculous
-                    match stat {
-                        Statement::InstrLine(Instruction::Jump(l)) => {
-                            Statement::InstrLine(Instruction::Jump(line_labels[&l]))
-                        }
-                        Statement::Literal(l) => Statement::Literal(l),
-                        Statement::InstrLine(Instruction::Load(a)) => {
-                            Statement::InstrLine(Instruction::Load(a))
-                        }
-                        Statement::InstrLine(Instruction::And(a)) => {
-                            Statement::InstrLine(Instruction::And(a))
-                        }
-                        Statement::InstrLine(Instruction::Xor(a)) => {
-                            Statement::InstrLine(Instruction::Xor(a))
-                        }
-                        Statement::InstrLine(Instruction::Or(a)) => {
-                            Statement::InstrLine(Instruction::Or(a))
-                        }
-                        Statement::InstrLine(Instruction::Add(a)) => {
-                            Statement::InstrLine(Instruction::Add(a))
-                        }
-                        Statement::InstrLine(Instruction::Sub(a)) => {
-                            Statement::InstrLine(Instruction::Sub(a))
-                        }
-                        Statement::InstrLine(Instruction::Store(a)) => {
-                            Statement::InstrLine(Instruction::Store(a))
-                        }
-                    }
-                })
-                .collect();
-
-            Ok(Self { statements })
-        }
+        Ok(Self { statements })
     }
 }
 
@@ -374,8 +369,8 @@ pub mod flattened {
 /// # Errors
 ///
 /// May throw any [`ParseError`] from any stage of parsing.
-pub fn parse_final(input: &str) -> Result<flattened::AstFinal> {
+pub fn parse_final(input: &str) -> Result<Program> {
     let mut tokens = lex::tokenize(input)?.into_iter();
     let program = parse::Ast::consume_token_stream(&mut tokens)?;
-    flattened::AstFinal::from_ast(program)
+    Program::from_ast(program)
 }

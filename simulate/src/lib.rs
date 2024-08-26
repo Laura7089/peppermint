@@ -25,10 +25,8 @@
 
 use std::ops::DerefMut;
 
-use peppermint::{Address, DoubleWord, Instruction, Statement};
+use peppermint::{Address, DoubleWord, Instruction, Program, Statement};
 use thiserror::Error;
-
-type Program = peppermint::flattened::AstFinal;
 
 /// Simulator for Peppermint on Tick Talk.
 ///
