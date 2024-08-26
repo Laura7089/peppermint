@@ -39,7 +39,6 @@ pub enum ParseError {
 type Result<T> = std::result::Result<T, ParseError>;
 
 /// Tokenisation and lexing.
-// TODO: replace with tree-sitter
 pub mod lex {
     use super::*;
 
