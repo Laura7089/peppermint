@@ -1,0 +1,20 @@
+#!/bin/env -S just --justfile
+
+TS := "./node_modules/tree-sitter-cli/tree-sitter"
+
+# run the grammar test suite
+test: (generate)
+    {{ TS }} test
+
+# syntax highlight a peppermint file
+highlight file="../sample_program.ppr" *args="": (generate)
+    {{ TS }} highlight {{ args }} "{{ file }}"
+    
+# generate the tree sitter grammar build files
+generate: (setup)
+    {{ TS }} generate
+
+# set up tree-sitter
+setup:
+    [ ! -f node_modules ] || npm install
+    
