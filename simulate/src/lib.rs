@@ -107,6 +107,7 @@ impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
                 }
                 Instruction::Jump(pc) => self.program_counter = *pc,
             },
+            Statement::Label(_) => {}
         }
 
         Ok(false)

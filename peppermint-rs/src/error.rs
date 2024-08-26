@@ -29,18 +29,11 @@ pub type Span = Range<usize>;
 #[derive(Debug, Clone)]
 pub struct Error {
     kind: ErrorKind,
-    span: Option<Span>,
+    span: Span,
 }
 
 impl Error {
     pub(crate) fn new(kind: ErrorKind, span: Span) -> Self {
-        Self {
-            kind,
-            span: Some(span),
-        }
-    }
-
-    pub(crate) fn new_no_span(kind: ErrorKind) -> Self {
-        Self { kind, span: None }
+        Self { kind, span }
     }
 }

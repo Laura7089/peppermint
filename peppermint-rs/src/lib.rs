@@ -20,12 +20,13 @@ pub type DoubleWord = u16;
 pub type Address = u8; // TODO: change me to u7
 /// Literal integer.
 pub type Literal = u16; // TODO: change me to u15
-type LineNum = usize;
+type StatNum = usize;
 
 /// Statement in Peppermint.
 #[derive(Debug)]
 #[allow(missing_docs)]
 pub enum Statement<L> {
+    Label(String),
     InstrLine(Instruction<L>),
     Literal(Literal),
 }
@@ -47,61 +48,40 @@ pub enum Instruction<L> {
     Jump(L),
 }
 
-/// Statement with an optional label.
-///
-/// Note that label locations are not finalised here; hence, we're using `String` as the label type in [`Statement`].
-#[derive(Debug)]
-#[allow(missing_docs)]
-struct LabelledStatement {
-    pub label: Option<String>,
-    pub statement: Statement<String>,
-}
-
-impl LabelledStatement {
+impl Statement<String> {
     /// Take the next (labelled) statement from `stream`.
     ///
     /// Mutates `stream`, leaving everything after the next (valid) statement.
     ///
     /// # Errors
     ///
-    /// Can throw [`ParseError::EndOfFile`], [`ParseError::BadOperand`] or [`ParseError::InvalidToken]`.
+    /// Can throw [`Error::EndOfFile`], [`Error::BadOperand`] or [`Error::InvalidToken]`.
     fn take_from_token_stream(
         stream: &mut impl Iterator<Item = (Token, Span)>,
-    ) -> Option<Result<Self, Error>> {
-        // get the statement token out by stripping out the potential label
-        let mut label = None;
-        let statement_token = match stream.next()? {
-            (Token::Label(name), span) => {
-                label = Some(name);
-                let Some(tok) = stream.next() else {
-                    return Some(Err(Error::new(ErrorKind::EndOfFile, span)));
-                };
-                tok
-            }
-            t => t,
-        };
+    ) -> Option<Result<(Self, Span), Error>> {
+        let first_token = stream.next()?;
 
-        let (opcode, operand, op_span) = match statement_token {
-            // check for literals
-            (Token::Literal(val), _) => {
-                return Some(Ok(Self {
-                    label,
-                    statement: Statement::Literal(val),
-                }))
-            }
-            // now we only have instructions left to handle
-            // check that an operand follows it
-            (Token::Instruction(instr_type), span) => match stream.next() {
-                Some((operand, op_span)) => (instr_type, operand, op_span),
-                None => return Some(Err(Error::new(ErrorKind::EndOfFile, span))),
-            },
+        // handle labels and literals
+        match first_token {
+            (Token::Label(name), span) => return Some(Ok((Self::Label(name), span))),
+            (Token::Literal(val), span) => return Some(Ok((Self::Literal(val), span))),
+            _ => {}
+        }
+
+        // now we only have instructions left to handle
+        let (Token::Instruction(opcode), opcode_span) = first_token else {
             // if it's not an instruction token then the code is malformed
             // we don't expect to run into comments because they're ignored by the lexer
-            (_, span) => return Some(Err(Error::new(ErrorKind::InvalidToken, span))),
+            return Some(Err(Error::new(ErrorKind::InvalidToken, first_token.1)));
         };
 
-        use InstructionKind::*;
+        let Some((operand, operand_span)) = stream.next() else {
+            return Some(Err(Error::new(ErrorKind::EndOfFile, opcode_span)));
+        };
+        // construct the span of the full instruction
+        let whole_span = (opcode_span.start)..(operand_span.end);
 
+        use InstructionKind::*;
         let full_inst = match (opcode, operand) {
             (Load, Token::Address(addr)) => Instruction::Load(addr),
             (And, Token::Address(addr)) => Instruction::And(addr),
@@ -111,13 +91,10 @@ impl LabelledStatement {
             (Sub, Token::Address(addr)) => Instruction::Sub(addr),
             (Store, Token::Address(addr)) => Instruction::Store(addr),
             (Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
-            _ => return Some(Err(Error::new(ErrorKind::BadOperand, op_span))),
+            _ => return Some(Err(Error::new(ErrorKind::BadOperand, operand_span))),
         };
 
-        Some(Ok(Self {
-            label,
-            statement: Statement::InstrLine(full_inst),
-        }))
+        Some(Ok((Self::InstrLine(full_inst), whole_span)))
     }
 }
 
@@ -129,54 +106,43 @@ impl LabelledStatement {
 /// To uphold the correctness of labels, this type does not allow mutation; if you want to inspect the statements then call [`Self::statements`].
 #[derive(Debug)]
 pub struct Program {
-    statements: Vec<Statement<LineNum>>,
+    statements: Vec<Statement<StatNum>>,
 }
 
 impl Program {
     /// Read-only reference to internal statement list/AST.
     #[must_use]
-    pub fn statements(&self) -> &[Statement<LineNum>] {
+    pub fn statements(&self) -> &[Statement<StatNum>] {
         &self.statements
     }
 
-    /// Consume a non-finalised [`parse::Ast`] and make the labels absolute.
-    ///
-    /// # Errors
-    ///
-    /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
+    /// Parse a token stream and make the labels absolute.
     fn from_tokens(stream: &mut impl Iterator<Item = (Token, Span)>) -> Result<Self, Error> {
-        let statements: Vec<_> =
-            std::iter::from_fn(|| LabelledStatement::take_from_token_stream(stream))
-                .collect::<Result<_, _>>()?;
+        let stat_stream = std::iter::from_fn(|| Statement::take_from_token_stream(stream));
 
-        // mapping from label names -> line numbers
-        let line_labels = {
-            let mut labels: HashMap<String, usize> = HashMap::new();
-            let statement_labels = statements
-                .iter()
-                .enumerate()
-                .filter_map(|(i, stat)| stat.label.as_ref().map(|label| (i, label.clone())));
-            for (i, label) in statement_labels {
-                match labels.entry(label) {
+        let mut statements = Vec::new();
+        let mut labels: HashMap<String, usize> = HashMap::new();
+        for (i, stat) in stat_stream.enumerate() {
+            let (stat, span) = stat?;
+            if let Statement::Label(name) = &stat {
+                // TODO: remove clone
+                match labels.entry(name.clone()) {
                     ent @ Entry::Vacant(_) => {
                         ent.or_insert(i);
                     }
-                    Entry::Occupied(_) => {
-                        return Err(Error::new_no_span(ErrorKind::DuplicateLabel))
-                    }
+                    Entry::Occupied(_) => return Err(Error::new(ErrorKind::DuplicateLabel, span)),
                 }
             }
-            labels
-        };
+            statements.push(stat);
+        }
 
         let statements = statements
             .into_iter()
             .map(|stat| {
-                let stat = stat.statement;
                 // TODO: this is ridiculous
                 match stat {
-                    Statement::InstrLine(Instruction::Jump(l)) => {
-                        Statement::InstrLine(Instruction::Jump(line_labels[&l]))
+                    Statement::InstrLine(Instruction::Jump(name)) => {
+                        Statement::InstrLine(Instruction::Jump(labels[&name]))
                     }
                     Statement::Literal(l) => Statement::Literal(l),
                     Statement::InstrLine(Instruction::Load(a)) => {
@@ -200,6 +166,7 @@ impl Program {
                     Statement::InstrLine(Instruction::Store(a)) => {
                         Statement::InstrLine(Instruction::Store(a))
                     }
+                    Statement::Label(name) => Statement::Label(name),
                 }
             })
             .collect();
