@@ -59,6 +59,9 @@ impl Statement<String> {
     fn take_from_token_stream(
         stream: &mut impl Iterator<Item = (Token, Span)>,
     ) -> Option<Result<(Self, Span), Error>> {
+        #[allow(clippy::enum_glob_use)]
+        use InstructionKind::*;
+
         let first_token = stream.next()?;
 
         // handle labels and literals
@@ -81,7 +84,6 @@ impl Statement<String> {
         // construct the span of the full instruction
         let whole_span = (opcode_span.start)..(operand_span.end);
 
-        use InstructionKind::*;
         let full_inst = match (opcode, operand) {
             (Load, Token::Address(addr)) => Instruction::Load(addr),
             (And, Token::Address(addr)) => Instruction::And(addr),

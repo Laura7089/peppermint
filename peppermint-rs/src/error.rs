@@ -4,6 +4,7 @@ use std::ops::Range;
 
 /// Nature of error in malformed input.
 #[derive(Debug, PartialEq, Default, Clone)]
+#[allow(clippy::module_name_repetitions)]
 pub enum ErrorKind {
     #[default]
     /// Encountered unrecognised token.
