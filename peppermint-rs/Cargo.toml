@@ -7,7 +7,6 @@ edition = "2021"
 logos = "0.14.1"
 num-traits = "0.2.19"
 strum = { version = "0.26.3", features = ["derive"] }
-thiserror = "1.0.63"
 
 [dev-dependencies]
 test-case = "3.3.1"

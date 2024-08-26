@@ -158,7 +158,7 @@ mod tests {
         ADD [0x00]
         STORE [0x00]";
 
-        let program = peppermint::parse_final(source).expect("parse error");
+        let program = peppermint::Program::parse_source(source).expect("parse error");
         let mut sim = TickTalk::new(&program, 10);
         sim.run_to_completion().expect("simulation error");
 

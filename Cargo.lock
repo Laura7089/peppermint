@@ -213,7 +213,6 @@ dependencies = [
  "num-traits",
  "strum",
  "test-case",
- "thiserror",
 ]
 
 [[package]]

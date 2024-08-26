@@ -17,8 +17,6 @@ struct Opt {
 
 #[derive(clap::Subcommand)]
 enum Command {
-    /// Tokenise the input file.
-    Tokenise {},
     /// Parse the input file into an AST.
     Parse {},
     /// Assemble the input file into raw machine code.
@@ -30,15 +28,8 @@ fn main() {
     let content = get_file_content(&opt.file);
 
     match opt.command {
-        Command::Tokenise {} => {
-            println!("{:?}", peppermint::lex::tokenise(&content));
-        }
         Command::Parse {} => {
-            let mut tokens = peppermint::lex::tokenise(&content)
-                .expect("tokenisation error")
-                .into_iter();
-            let program =
-                peppermint::parse::Ast::consume_token_stream(&mut tokens).expect("parse error");
+            let program = peppermint::Program::parse_source(&content).expect("parse error");
             println!("{:?}", program);
         }
         Command::Assemble { output_file: _ } => todo!("assembler not implemented yet"),
