@@ -39,4 +39,9 @@ impl Error {
     pub(crate) fn new(kind: ErrorKind, span: Span) -> Self {
         Self { kind, span }
     }
+
+    /// Get the section of the source that the error refers to.
+    pub fn get_span<'a>(&self, source: &'a str) -> &'a str {
+        &source[self.span.clone()]
+    }
 }

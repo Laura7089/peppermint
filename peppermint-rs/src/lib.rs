@@ -17,9 +17,9 @@ pub type Word = u8;
 /// Two memory words.
 pub type DoubleWord = u16;
 /// Memory address.
-pub type Address = u8; // TODO: change me to u7
+pub type Address = u16;
 /// Literal integer.
-pub type Literal = u16; // TODO: change me to u15
+pub type Literal = u16;
 type StatNum = usize;
 
 /// Statement in Peppermint.
@@ -120,6 +120,8 @@ impl Program {
 
     /// Parse a token stream and make the labels absolute.
     fn from_tokens(stream: &mut impl Iterator<Item = (Token, Span)>) -> Result<Self, Error> {
+        use Instruction::*;
+        use Statement::*;
         let stat_stream = std::iter::from_fn(|| Statement::take_from_token_stream(stream));
 
         let mut statements = Vec::new();
@@ -143,32 +145,16 @@ impl Program {
             .map(|stat| {
                 // TODO: this is ridiculous
                 match stat {
-                    Statement::InstrLine(Instruction::Jump(name)) => {
-                        Statement::InstrLine(Instruction::Jump(labels[&name]))
-                    }
-                    Statement::Literal(l) => Statement::Literal(l),
-                    Statement::InstrLine(Instruction::Load(a)) => {
-                        Statement::InstrLine(Instruction::Load(a))
-                    }
-                    Statement::InstrLine(Instruction::And(a)) => {
-                        Statement::InstrLine(Instruction::And(a))
-                    }
-                    Statement::InstrLine(Instruction::Xor(a)) => {
-                        Statement::InstrLine(Instruction::Xor(a))
-                    }
-                    Statement::InstrLine(Instruction::Or(a)) => {
-                        Statement::InstrLine(Instruction::Or(a))
-                    }
-                    Statement::InstrLine(Instruction::Add(a)) => {
-                        Statement::InstrLine(Instruction::Add(a))
-                    }
-                    Statement::InstrLine(Instruction::Sub(a)) => {
-                        Statement::InstrLine(Instruction::Sub(a))
-                    }
-                    Statement::InstrLine(Instruction::Store(a)) => {
-                        Statement::InstrLine(Instruction::Store(a))
-                    }
-                    Statement::Label(name) => Statement::Label(name),
+                    InstrLine(Jump(name)) => InstrLine(Jump(labels[&name])),
+                    Literal(l) => Literal(l),
+                    InstrLine(Load(a)) => InstrLine(Load(a)),
+                    InstrLine(And(a)) => InstrLine(And(a)),
+                    InstrLine(Xor(a)) => InstrLine(Xor(a)),
+                    InstrLine(Or(a)) => InstrLine(Or(a)),
+                    InstrLine(Add(a)) => InstrLine(Add(a)),
+                    InstrLine(Sub(a)) => InstrLine(Sub(a)),
+                    InstrLine(Store(a)) => InstrLine(Store(a)),
+                    Label(name) => Label(name),
                 }
             })
             .collect();

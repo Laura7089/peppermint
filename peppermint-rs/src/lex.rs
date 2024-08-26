@@ -34,9 +34,9 @@ pub(crate) enum Token {
     JumpLabel(String),
     /// Label.
     #[regex(r"[a-zA-Z][a-zA-Z_\-0-9]*:", |lex| {
-            let slice = lex.slice();
-            slice[0..(slice.len() - 1)].to_string()
-        })]
+        let slice = lex.slice();
+        slice[0..(slice.len() - 1)].to_string()
+    })]
     Label(String),
 }
 
@@ -44,13 +44,14 @@ fn debracket(input: &str) -> &str {
     &input[1..(input.len() - 1)]
 }
 
+// only reuturns `ErrorKind` because the lexer can attach the span for us later
 fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, ErrorKind> {
     let raw = match radix {
         2 | 16 => &raw[2..],
         _ => raw,
     };
 
-    I::from_str_radix(raw, radix).map_err(|_| ErrorKind::MalformedInteger)
+    I::from_str_radix(dbg!(raw), dbg!(radix)).map_err(|_| ErrorKind::MalformedInteger)
 }
 
 /// Tokenise a source code string.
