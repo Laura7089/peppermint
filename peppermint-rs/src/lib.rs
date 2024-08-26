@@ -1,4 +1,4 @@
-//! Peppermint parsing, assembling and emulation.
+//! Peppermint parsing and representation.
 // TODO: use workspace Cargo.toml to define lints
 #![warn(clippy::pedantic)]
 #![deny(missing_docs)]

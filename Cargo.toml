@@ -5,4 +5,5 @@ members = [
   "cli",
   "peppermint-rs",
   "tree-sitter-peppermint",
+  "simulate",
 ]

@@ -1,0 +1,153 @@
+//! Simulate Peppermint code on Tick Talk.
+//!
+//! To parse a program then run it to completion:
+//! ```
+//! # fn main() {
+//! use peppermint_simulate::TickTalk;
+//!
+//! let my_program = "
+//!     10
+//!     STORE [0x10]
+//!     5
+//!     ADD [0x10]
+//!     STORE [0x20]
+//! ";
+//!
+//! let parsed = peppermint::parse_final(my_program).unwrap();
+//! let mut sim: TickTalk<100> = TickTalk::new(&parsed);
+//! sim.run_to_completion().unwrap();
+//!
+//! assert_eq!(sim.memory[0x20], 15);
+//! # }
+//! ```
+#![warn(clippy::pedantic)]
+#![deny(missing_docs)]
+
+use peppermint::{Address, DoubleWord, Instruction, Statement};
+use thiserror::Error;
+
+type Program = peppermint::flattened::AstFinal;
+
+/// Simulator for Peppermint on Tick Talk.
+///
+/// Represents the state of a Tick Talk machine as a program runs on it.
+#[derive(Clone)]
+pub struct TickTalk<'a, const MEM_SIZE: usize> {
+    /// Memory of the system.
+    pub memory: [peppermint::DoubleWord; MEM_SIZE],
+    /// Program code that the system is executing.
+    pub program: &'a Program,
+    /// Program counter "register".
+    pub program_counter: usize,
+    /// Accumulator of the system.
+    pub accumulator: peppermint::DoubleWord,
+}
+
+/// Error in simulation.
+#[derive(Error, Debug)]
+pub enum Error {
+    /// Tried to access address outside of memory.
+    #[error("tried to access address outside of memory")]
+    AccessOutOfBounds,
+}
+
+impl<'a, const MEM_SIZE: usize> TickTalk<'a, MEM_SIZE> {
+    /// Create a new simulator and load a program into it.
+    ///
+    /// To parse into a program, see [`peppermint::parse_final`].
+    pub fn new(program: &'a Program) -> Self {
+        Self {
+            program,
+            memory: [0; MEM_SIZE],
+            program_counter: 0,
+            accumulator: 0,
+        }
+    }
+
+    /// Step the program by a single instruction.
+    ///
+    /// Returns whether the program has halted.
+    pub fn step(&mut self) -> Result<bool, Error> {
+        if self.halted() {
+            return Ok(true);
+        }
+
+        let statement = &self.program.statements()[self.program_counter];
+        self.program_counter += 1;
+
+        match statement {
+            Statement::Literal(val) => self.accumulator = *val,
+            Statement::InstrLine(ins) => match ins {
+                Instruction::Load(addr) => self.accumulator = self.read_address(*addr)?,
+                Instruction::And(addr) => self.accumulator &= self.read_address(*addr)?,
+                Instruction::Xor(addr) => self.accumulator ^= self.read_address(*addr)?,
+                Instruction::Or(addr) => self.accumulator |= self.read_address(*addr)?,
+                Instruction::Add(addr) => self.accumulator += self.read_address(*addr)?,
+                Instruction::Sub(addr) => self.accumulator -= self.read_address(*addr)?,
+                Instruction::Store(addr) => {
+                    if let Some(value) = self.memory.get_mut(*addr as usize) {
+                        *value = self.accumulator;
+                    } else {
+                        return Err(Error::AccessOutOfBounds);
+                    }
+                }
+                Instruction::Jump(pc) => self.program_counter = *pc,
+            },
+        }
+
+        Ok(false)
+    }
+
+    /// Run the simulator until the program exits.
+    ///
+    /// # Warning
+    ///
+    /// Infinite loops are possible in Peppermint, so this function may never terminate.
+    pub fn run_to_completion(&mut self) -> Result<(), Error> {
+        let mut halted = false;
+        while !halted {
+            halted = self.step()?;
+        }
+
+        Ok(())
+    }
+
+    /// Check if the machine is halted.
+    ///
+    /// The machine is halted if the program counter is outside of the instruction count.
+    pub fn halted(&self) -> bool {
+        self.program_counter >= self.program.statements().len()
+    }
+
+    /// Read from an address in the memory.
+    fn read_address(&self, addr: Address) -> Result<DoubleWord, Error> {
+        self.memory
+            .get(addr as usize)
+            .map(|v| *v)
+            .ok_or(Error::AccessOutOfBounds)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple_jump() {
+        let source = "10
+        STORE [0x00]
+        JUMP :skip
+        100
+        ADD [0x00]
+        STORE [0x00]
+        skip: 1
+        ADD [0x00]
+        STORE [0x00]";
+
+        let program = peppermint::parse_final(source).expect("parse error");
+        let mut sim: TickTalk<10> = TickTalk::new(&program);
+        sim.run_to_completion().expect("simulation error");
+
+        assert_eq!(sim.memory[0x00], 11);
+    }
+}
