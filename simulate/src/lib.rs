@@ -55,6 +55,7 @@ impl<'a> TickTalk<'a, Vec<DoubleWord>> {
     /// Create a new simulator and load a program into it.
     ///
     /// To parse into a program, see [`peppermint::Program::parse_source`].
+    #[must_use]
     pub fn new(program: &'a Program, memory_size: usize) -> Self {
         Self {
             program,
@@ -81,6 +82,9 @@ impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
     /// Step the program by a single instruction.
     ///
     /// Returns whether the program has halted.
+    ///
+    /// # Errors
+    /// Throws [`Error`] if the program behaves illegally during simulation.
     pub fn step(&mut self) -> Result<bool, Error> {
         if self.halted() {
             return Ok(true);
@@ -115,9 +119,10 @@ impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
 
     /// Run the simulator until the program exits.
     ///
-    /// # Warning
+    /// **Warning**: Infinite loops are possible in Peppermint, so this function may never terminate.
     ///
-    /// Infinite loops are possible in Peppermint, so this function may never terminate.
+    /// # Errors
+    /// Throws [`Error`] if the program behaves illegally during simulation.
     pub fn run_to_completion(&mut self) -> Result<(), Error> {
         let mut halted = false;
         while !halted {
@@ -138,7 +143,7 @@ impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
     fn read_address(&self, addr: Address) -> Result<DoubleWord, Error> {
         self.memory
             .get(addr as usize)
-            .map(|v| *v)
+            .copied()
             .ok_or(Error::AccessOutOfBounds)
     }
 }
