@@ -4,3 +4,4 @@
 test:
     cd tree-sitter-peppermint && just test
     cargo test
+    cargo run -- -f ./sample_program.ppr parse
