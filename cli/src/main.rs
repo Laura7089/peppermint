@@ -21,16 +21,35 @@ enum Command {
     Parse {},
     /// Assemble the input file into raw machine code.
     Assemble { output_file: PathBuf },
+    /// Simulate a file.
+    Simulate {
+        /// Addresses to read from the memory at the end of execution.
+        addresses: Vec<peppermint::Address>,
+        /// Number of memory words to allocate
+        #[arg(short, long, default_value_t = 128_000)]
+        memory_size: usize,
+    },
 }
 
 fn main() {
     let opt = Opt::parse();
     let content = get_file_content(&opt.file);
+    let program = peppermint::Program::parse_source(&content).expect("parse error");
 
     match opt.command {
         Command::Parse {} => {
-            let program = peppermint::Program::parse_source(&content).expect("parse error");
             println!("{:?}", program);
+        }
+        Command::Simulate {
+            addresses,
+            memory_size,
+        } => {
+            let mut machine = peppermint_simulate::TickTalk::new(&program, memory_size);
+
+            machine.run_to_completion().expect("simulation error");
+            for addr in addresses {
+                println!("addr [0x{addr:x}]: 0x{:x}", machine.memory[addr as usize]);
+            }
         }
         Command::Assemble { output_file: _ } => todo!("assembler not implemented yet"),
     }
