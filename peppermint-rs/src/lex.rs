@@ -51,7 +51,7 @@ fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, ErrorKind> {
         _ => raw,
     };
 
-    I::from_str_radix(dbg!(raw), dbg!(radix)).map_err(|_| ErrorKind::MalformedInteger)
+    I::from_str_radix(raw, radix).map_err(|_| ErrorKind::MalformedInteger)
 }
 
 /// Tokenise a source code string.
