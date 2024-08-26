@@ -4,7 +4,7 @@ use std::ops::Range;
 
 /// Nature of error in malformed input.
 #[derive(Debug, PartialEq, Default, Clone)]
-pub enum ParseErrorKind {
+pub enum ErrorKind {
     #[default]
     /// Encountered unrecognised token.
     InvalidToken,
@@ -27,20 +27,20 @@ pub type Span = Range<usize>;
 
 /// Error originating from malformed input.
 #[derive(Debug, Clone)]
-pub struct ParseError {
-    kind: ParseErrorKind,
+pub struct Error {
+    kind: ErrorKind,
     span: Option<Span>,
 }
 
-impl ParseError {
-    pub(crate) fn new(kind: ParseErrorKind, span: Span) -> Self {
+impl Error {
+    pub(crate) fn new(kind: ErrorKind, span: Span) -> Self {
         Self {
             kind,
             span: Some(span),
         }
     }
 
-    pub(crate) fn new_no_span(kind: ParseErrorKind) -> Self {
+    pub(crate) fn new_no_span(kind: ErrorKind) -> Self {
         Self { kind, span: None }
     }
 }

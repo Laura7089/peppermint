@@ -10,7 +10,7 @@ mod lex;
 use lex::{InstructionKind, Token};
 
 pub mod error;
-use error::{ParseError, ParseErrorKind, Span};
+use error::{Error, ErrorKind, Span};
 
 /// One memory word.
 pub type Word = u8;
@@ -66,8 +66,8 @@ impl LabelledStatement {
     ///
     /// Can throw [`ParseError::EndOfFile`], [`ParseError::BadOperand`] or [`ParseError::InvalidToken]`.
     fn take_from_token_stream(
-        stream: &mut impl Iterator<Item = (Token, error::Span)>,
-    ) -> Result<Option<Self>, error::ParseError> {
+        stream: &mut impl Iterator<Item = (Token, Span)>,
+    ) -> Result<Option<Self>, Error> {
         let Some(next_token) = stream.next() else {
             return Ok(None);
         };
@@ -78,7 +78,7 @@ impl LabelledStatement {
             label = Some(name);
             stream
                 .next()
-                .ok_or(error::ParseError::new(ParseErrorKind::EndOfFile, span))?
+                .ok_or(Error::new(ErrorKind::EndOfFile, span))?
         } else {
             next_token
         };
@@ -94,23 +94,25 @@ impl LabelledStatement {
             // now we only have instructions left to handle
             (Token::Instruction(instr_type), span) => match stream.next() {
                 Some((operand, op_span)) => Ok((instr_type, operand, op_span)),
-                None => Err(ParseError::new(ParseErrorKind::EndOfFile, span)),
+                None => Err(Error::new(ErrorKind::EndOfFile, span)),
             },
             // if it's not an instruction token then the code is malformed
             // we don't expect to run into comments because they're ignored by the lexer
-            (_, span) => Err(ParseError::new(ParseErrorKind::InvalidToken, span)),
+            (_, span) => Err(Error::new(ErrorKind::InvalidToken, span)),
         }?;
 
+        use InstructionKind::*;
+
         let full_inst = match (opcode, operand) {
-            (InstructionKind::Load, Token::Address(addr)) => Instruction::Load(addr),
-            (InstructionKind::And, Token::Address(addr)) => Instruction::And(addr),
-            (InstructionKind::Xor, Token::Address(addr)) => Instruction::Xor(addr),
-            (InstructionKind::Or, Token::Address(addr)) => Instruction::Or(addr),
-            (InstructionKind::Add, Token::Address(addr)) => Instruction::Add(addr),
-            (InstructionKind::Sub, Token::Address(addr)) => Instruction::Sub(addr),
-            (InstructionKind::Store, Token::Address(addr)) => Instruction::Store(addr),
-            (InstructionKind::Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
-            _ => return Err(ParseError::new(ParseErrorKind::BadOperand, op_span)),
+            (Load, Token::Address(addr)) => Instruction::Load(addr),
+            (And, Token::Address(addr)) => Instruction::And(addr),
+            (Xor, Token::Address(addr)) => Instruction::Xor(addr),
+            (Or, Token::Address(addr)) => Instruction::Or(addr),
+            (Add, Token::Address(addr)) => Instruction::Add(addr),
+            (Sub, Token::Address(addr)) => Instruction::Sub(addr),
+            (Store, Token::Address(addr)) => Instruction::Store(addr),
+            (Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
+            _ => return Err(Error::new(ErrorKind::BadOperand, op_span)),
         };
 
         Ok(Some(Self {
@@ -143,7 +145,7 @@ impl Program {
     /// # Errors
     ///
     /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
-    fn from_tokens(stream: &mut impl Iterator<Item = (Token, Span)>) -> Result<Self, ParseError> {
+    fn from_tokens(stream: &mut impl Iterator<Item = (Token, Span)>) -> Result<Self, Error> {
         let mut statements = Vec::new();
         while let Some(stat) = LabelledStatement::take_from_token_stream(stream)? {
             statements.push(stat);
@@ -162,7 +164,7 @@ impl Program {
                         ent.or_insert(i);
                     }
                     Entry::Occupied(_) => {
-                        return Err(ParseError::new_no_span(ParseErrorKind::DuplicateLabel))
+                        return Err(Error::new_no_span(ErrorKind::DuplicateLabel))
                     }
                 }
             }
@@ -212,7 +214,7 @@ impl Program {
     /// # Errors
     ///
     /// May throw any [`ParseError`] from any stage of parsing.
-    pub fn parse_source(input: &str) -> Result<Self, ParseError> {
+    pub fn parse_source(input: &str) -> Result<Self, Error> {
         let tokens = lex::tokenise(input)?;
         Program::from_tokens(&mut tokens.into_iter())
     }

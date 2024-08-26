@@ -1,5 +1,5 @@
 use super::{
-    error::{ParseError, ParseErrorKind, Span},
+    error::{Error, ErrorKind, Span},
     Address, Literal,
 };
 
@@ -9,10 +9,10 @@ use num_traits::Num;
 /// One [lexical token](https://en.wikipedia.org/wiki/Lexical_token#Lexical_token_and_lexical_tokenization) in Peppermint.
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
-#[logos(error = ParseErrorKind)]
+#[logos(error = ErrorKind)]
 pub(crate) enum Token {
     /// Instruction opcode.
-    #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| ParseErrorKind::UnknownInstruction))]
+    #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| ErrorKind::UnknownInstruction))]
     Instruction(InstructionKind),
     /// Code comment.
     ///
@@ -44,23 +44,23 @@ fn debracket(input: &str) -> &str {
     &input[1..(input.len() - 1)]
 }
 
-fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, ParseErrorKind> {
+fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, ErrorKind> {
     let raw = match radix {
         2 | 16 => &raw[2..],
         _ => raw,
     };
 
-    I::from_str_radix(raw, radix).map_err(|_| ParseErrorKind::MalformedInteger)
+    I::from_str_radix(raw, radix).map_err(|_| ErrorKind::MalformedInteger)
 }
 
 /// Tokenise a source code string.
-pub(crate) fn tokenise(input: &str) -> Result<Vec<(Token, Span)>, ParseError> {
+pub(crate) fn tokenise(input: &str) -> Result<Vec<(Token, Span)>, Error> {
     Token::lexer(input)
         .spanned()
         .map(|(res, span)| {
             let span_again = span.clone();
             res.map(|tok| (tok, span))
-                .map_err(|kind| ParseError::new(kind, span_again))
+                .map_err(|kind| Error::new(kind, span_again))
         })
         .collect()
 }
