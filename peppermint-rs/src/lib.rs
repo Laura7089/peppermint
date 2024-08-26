@@ -67,39 +67,38 @@ impl LabelledStatement {
     /// Can throw [`ParseError::EndOfFile`], [`ParseError::BadOperand`] or [`ParseError::InvalidToken]`.
     fn take_from_token_stream(
         stream: &mut impl Iterator<Item = (Token, Span)>,
-    ) -> Result<Option<Self>, Error> {
-        let Some(next_token) = stream.next() else {
-            return Ok(None);
-        };
-
+    ) -> Option<Result<Self, Error>> {
         // get the statement token out by stripping out the potential label
         let mut label = None;
-        let statement_token = if let (Token::Label(name), span) = next_token {
-            label = Some(name);
-            stream
-                .next()
-                .ok_or(Error::new(ErrorKind::EndOfFile, span))?
-        } else {
-            next_token
+        let statement_token = match stream.next()? {
+            (Token::Label(name), span) => {
+                label = Some(name);
+                let Some(tok) = stream.next() else {
+                    return Some(Err(Error::new(ErrorKind::EndOfFile, span)));
+                };
+                tok
+            }
+            t => t,
         };
 
         let (opcode, operand, op_span) = match statement_token {
             // check for literals
             (Token::Literal(val), _) => {
-                return Ok(Some(Self {
+                return Some(Ok(Self {
                     label,
                     statement: Statement::Literal(val),
                 }))
             }
             // now we only have instructions left to handle
+            // check that an operand follows it
             (Token::Instruction(instr_type), span) => match stream.next() {
-                Some((operand, op_span)) => Ok((instr_type, operand, op_span)),
-                None => Err(Error::new(ErrorKind::EndOfFile, span)),
+                Some((operand, op_span)) => (instr_type, operand, op_span),
+                None => return Some(Err(Error::new(ErrorKind::EndOfFile, span))),
             },
             // if it's not an instruction token then the code is malformed
             // we don't expect to run into comments because they're ignored by the lexer
-            (_, span) => Err(Error::new(ErrorKind::InvalidToken, span)),
-        }?;
+            (_, span) => return Some(Err(Error::new(ErrorKind::InvalidToken, span))),
+        };
 
         use InstructionKind::*;
 
@@ -112,10 +111,10 @@ impl LabelledStatement {
             (Sub, Token::Address(addr)) => Instruction::Sub(addr),
             (Store, Token::Address(addr)) => Instruction::Store(addr),
             (Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
-            _ => return Err(Error::new(ErrorKind::BadOperand, op_span)),
+            _ => return Some(Err(Error::new(ErrorKind::BadOperand, op_span))),
         };
 
-        Ok(Some(Self {
+        Some(Ok(Self {
             label,
             statement: Statement::InstrLine(full_inst),
         }))
@@ -146,10 +145,9 @@ impl Program {
     ///
     /// Throws [`ParseError::DuplicateLabel`] if the same label is encountered twice.
     fn from_tokens(stream: &mut impl Iterator<Item = (Token, Span)>) -> Result<Self, Error> {
-        let mut statements = Vec::new();
-        while let Some(stat) = LabelledStatement::take_from_token_stream(stream)? {
-            statements.push(stat);
-        }
+        let statements: Vec<_> =
+            std::iter::from_fn(|| LabelledStatement::take_from_token_stream(stream))
+                .collect::<Result<_, _>>()?;
 
         // mapping from label names -> line numbers
         let line_labels = {
