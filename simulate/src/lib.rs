@@ -13,7 +13,7 @@
 //!     STORE [0x20]
 //! ";
 //!
-//! let parsed = peppermint::parse_final(my_program).unwrap();
+//! let parsed = peppermint::Program::parse_source(my_program).unwrap();
 //! let mut sim = TickTalk::new(&parsed, 100);
 //! sim.run_to_completion().unwrap();
 //!
@@ -54,7 +54,7 @@ pub enum Error {
 impl<'a> TickTalk<'a, Vec<DoubleWord>> {
     /// Create a new simulator and load a program into it.
     ///
-    /// To parse into a program, see [`peppermint::parse_final`].
+    /// To parse into a program, see [`peppermint::Program::parse_source`].
     pub fn new(program: &'a Program, memory_size: usize) -> Self {
         Self {
             program,
@@ -68,7 +68,7 @@ impl<'a> TickTalk<'a, Vec<DoubleWord>> {
 impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
     /// Create a new simulator and load a program into it with an external memory buffer.
     ///
-    /// To parse into a program, see [`peppermint::parse_final`].
+    /// To parse into a program, see [`peppermint::Program::parse_source`].
     pub fn with_external_mem(program: &'a Program, memory: M) -> Self {
         Self {
             program,
