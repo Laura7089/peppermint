@@ -37,6 +37,9 @@ pub enum ParseError {
     #[error("wrong operand type")]
     /// Wrong kind of operand for this context.
     BadOperand,
+    #[error("unknown instruction")]
+    /// Unknown instruction opcode.
+    UnknownInstruction,
 }
 
 type Result<T> = std::result::Result<T, ParseError>;
@@ -67,39 +70,39 @@ pub mod lex {
     #[logos(skip r"[ \t\n\f]+")]
     #[logos(error = ParseError)]
     pub enum Token {
-        #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().ok())]
         /// Instruction opcode.
+        #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| ParseError::UnknownInstruction))]
         Instruction(InstructionKind),
-        #[regex(r"[;#][^\n]+", logos::skip)]
         /// Code comment.
         ///
         /// Ignored for most purposes.
+        #[regex(r"[;#][^\n]+", logos::skip)]
         Comment,
+        /// Address literal.
         #[regex(r"\[[0-9]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 10))]
         #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 16))]
         #[regex(r"\[0b[01]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 2))]
-        /// Address literal.
         Address(Address),
+        /// Integer literal.
         #[regex(r"[0-9]+", |lex| parse_int::<Literal>(lex.slice(), 10))]
         #[regex(r"0x[0-9a-zA-Z]+", |lex| parse_int::<Literal>(lex.slice(), 16))]
         #[regex(r"0b[01]+", |lex| parse_int::<Literal>(lex.slice(), 2))]
-        /// Integer literal.
         Literal(Literal),
-        #[regex(r":[a-zA-Z][a-zA-Z_\-0-9]*", |lex| lex.slice()[1..].to_string())]
         /// Target label for a jump instruction.
+        #[regex(r":[a-zA-Z][a-zA-Z_\-0-9]*", |lex| lex.slice()[1..].to_string())]
         JumpLabel(String),
+        /// Label.
         #[regex(r"[a-zA-Z][a-zA-Z_\-0-9]*:", |lex| {
             let slice = lex.slice();
             slice[0..(slice.len() - 1)].to_string()
         })]
-        /// Label.
         Label(String),
     }
 
+    /// Kind of instruction opcode.
     #[derive(Debug, Clone, strum::EnumString, PartialEq, Eq)]
     #[strum(ascii_case_insensitive)]
     #[allow(missing_docs)]
-    /// Kind of instruction opcode.
     pub enum InstructionKind {
         Load,
         And,
