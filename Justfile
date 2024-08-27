@@ -3,8 +3,8 @@
 # run all test suites in the project
 test:
     cd tree-sitter-peppermint && just test
+    cd cli && cargo check
     cargo test
-    cargo run -- -f ./sample_program.ppr parse
 
 # generate documentation for all crates
 doc *args="":
