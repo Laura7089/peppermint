@@ -190,7 +190,7 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// May throw any [`ParseError`] from any stage of parsing.
+    /// May throw any [`Error`] from any stage of parsing.
     pub fn parse_source(input: &str) -> Result<Self, Error> {
         let tokens = lex::tokenise(input)?;
         Program::from_tokens(&mut tokens.into_iter())

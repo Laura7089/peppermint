@@ -84,7 +84,7 @@ impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
     /// Returns whether the program has halted.
     ///
     /// # Errors
-    /// Throws [`Error`] if the program behaves illegally during simulation.
+    /// Throws [`enum@Error`] if the program behaves illegally during simulation.
     pub fn step(&mut self) -> Result<bool, Error> {
         if self.halted() {
             return Ok(true);
@@ -122,7 +122,7 @@ impl<'a, M: DerefMut<Target = [DoubleWord]>> TickTalk<'a, M> {
     /// **Warning**: Infinite loops are possible in Peppermint, so this function may never terminate.
     ///
     /// # Errors
-    /// Throws [`Error`] if the program behaves illegally during simulation.
+    /// Throws [`enum@Error`] if the program behaves illegally during simulation.
     pub fn run_to_completion(&mut self) -> Result<(), Error> {
         let mut halted = false;
         while !halted {
