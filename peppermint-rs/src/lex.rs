@@ -17,16 +17,12 @@ pub(crate) enum LexError {
 /// One [lexical token](https://en.wikipedia.org/wiki/Lexical_token#Lexical_token_and_lexical_tokenization) in Peppermint.
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
+#[logos(skip r"[;#][^\n]*")] // skip comments
 #[logos(error = LexError)]
 pub(crate) enum Token {
     /// Instruction opcode.
     #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| LexError::UnknownInst))]
     Instruction(InstructionKind),
-    /// Code comment.
-    ///
-    /// Ignored for most purposes.
-    #[regex(r"[;#][^\n]+", logos::skip)]
-    Comment,
     /// Address literal.
     #[regex(r"\[[0-9]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 10))]
     #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 16))]
@@ -115,15 +111,18 @@ mod tests {
     }
 
     // NOTE: these do not have to be valid code, just valid token streams
-    #[test_case(
-        "LOAD 10 [0x10]label:" => vec![
-            Instruction(Load),
-            Literal(10),
-            Address(16),
-            Label("label".to_string()),
-        ]
-        ; "random sequence"
-    )]
+    #[test_case("LOAD 10 [0x10]label:" => vec![
+        Instruction(Load),
+        Literal(10),
+        Address(16),
+        Label("label".to_string()),
+    ] ; "random sequence")]
+    #[test_case("; a comment\nLOAD 10" => vec![
+        Instruction(Load), Literal(10),
+    ]; "comment followed by code")]
+    #[test_case("; a comment with the load instruction in it\nLOAD 10" => vec![
+        Instruction(Load), Literal(10),
+    ]; "comment w/ instr followed by code")]
     fn token_seq(input: &str) -> Vec<Token> {
         Token::lexer(input)
             .map(|r| r.expect("lexing error"))
