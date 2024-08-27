@@ -34,7 +34,9 @@ enum Command {
 fn main() {
     let opt = Opt::parse();
     let content = get_file_content(&opt.file);
-    let program = peppermint::Program::parse_source(&content).expect("parse error");
+    let program = peppermint::Program::parse_source(&content)
+        .map_err(|e| e.spans_to_source(&content))
+        .expect("parse error");
 
     match opt.command {
         Command::Parse {} => {

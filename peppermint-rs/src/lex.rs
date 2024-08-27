@@ -1,18 +1,26 @@
 use super::{
-    error::{Error, ErrorKind, Span},
+    error::{Error, Span},
     Address, Literal,
 };
 
 use logos::Logos;
 use num_traits::Num;
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) enum LexError {
+    InvalidInt,
+    #[default]
+    InvalidToken,
+    UnknownInst,
+}
+
 /// One [lexical token](https://en.wikipedia.org/wiki/Lexical_token#Lexical_token_and_lexical_tokenization) in Peppermint.
 #[derive(Logos, Debug, Clone, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")]
-#[logos(error = ErrorKind)]
+#[logos(error = LexError)]
 pub(crate) enum Token {
     /// Instruction opcode.
-    #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| ErrorKind::UnknownInstruction))]
+    #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| LexError::UnknownInst))]
     Instruction(InstructionKind),
     /// Code comment.
     ///
@@ -45,23 +53,24 @@ fn debracket(input: &str) -> &str {
 }
 
 // only reuturns `ErrorKind` because the lexer can attach the span for us later
-fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, ErrorKind> {
+fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, LexError> {
     let raw = match radix {
         2 | 16 => &raw[2..],
         _ => raw,
     };
 
-    I::from_str_radix(raw, radix).map_err(|_| ErrorKind::MalformedInteger)
+    I::from_str_radix(raw, radix).map_err(|_| LexError::InvalidInt)
 }
 
 /// Tokenise a source code string.
 pub(crate) fn tokenise(input: &str) -> Result<Vec<(Token, Span)>, Error> {
     Token::lexer(input)
         .spanned()
-        .map(|(res, span)| {
-            let span_again = span.clone();
-            res.map(|tok| (tok, span))
-                .map_err(|kind| Error::new(kind, span_again))
+        .map(|(res, span)| match res {
+            Ok(tok) => Ok((tok, span)),
+            Err(LexError::InvalidInt) => Err(Error::MalformedInteger { token: span }),
+            Err(LexError::InvalidToken) => Err(Error::InvalidToken { token: span }),
+            Err(LexError::UnknownInst) => Err(Error::UnknownInstruction { token: span }),
         })
         .collect()
 }

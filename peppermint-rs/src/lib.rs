@@ -10,7 +10,7 @@ mod lex;
 use lex::{InstructionKind, Token};
 
 pub mod error;
-use error::{Error, ErrorKind, Span};
+use error::{Error, Span};
 
 /// One memory word.
 pub type Word = u8;
@@ -75,11 +75,15 @@ impl Statement<String> {
         let (Token::Instruction(opcode), opcode_span) = first_token else {
             // if it's not an instruction token then the code is malformed
             // we don't expect to run into comments because they're ignored by the lexer
-            return Some(Err(Error::new(ErrorKind::InvalidToken, first_token.1)));
+            return Some(Err(Error::UnexpectedToken {
+                token: first_token.1,
+            }));
         };
 
         let Some((operand, operand_span)) = stream.next() else {
-            return Some(Err(Error::new(ErrorKind::EndOfFile, opcode_span)));
+            return Some(Err(Error::EndOfFile {
+                last_token: opcode_span,
+            }));
         };
         // construct the span of the full instruction
         let whole_span = (opcode_span.start)..(operand_span.end);
@@ -93,7 +97,21 @@ impl Statement<String> {
             (Sub, Token::Address(addr)) => Instruction::Sub(addr),
             (Store, Token::Address(addr)) => Instruction::Store(addr),
             (Jump, Token::JumpLabel(value)) => Instruction::Jump(value),
-            _ => return Some(Err(Error::new(ErrorKind::BadOperand, operand_span))),
+            // if it's a jump without a label
+            (Jump, Token::Address(_)) => {
+                return Some(Err(Error::BadOperand {
+                    opcode: opcode_span,
+                    operand: operand_span,
+                    wanted: error::OperandType::Label,
+                }))
+            }
+            _ => {
+                return Some(Err(Error::BadOperand {
+                    opcode: opcode_span,
+                    operand: operand_span,
+                    wanted: error::OperandType::Address,
+                }))
+            }
         };
 
         Some(Ok((Self::InstrLine(full_inst), whole_span)))
@@ -125,16 +143,22 @@ impl Program {
         let stat_stream = std::iter::from_fn(|| Statement::take_from_token_stream(stream));
 
         let mut statements = Vec::new();
-        let mut labels: HashMap<String, usize> = HashMap::new();
+        let mut labels: HashMap<String, (usize, Span)> = HashMap::new();
         for (i, stat) in stat_stream.enumerate() {
             let (stat, span) = stat?;
             if let Statement::Label(name) = &stat {
                 // TODO: remove clone
                 match labels.entry(name.clone()) {
                     ent @ Entry::Vacant(_) => {
-                        ent.or_insert(i);
+                        ent.or_insert((i, span));
                     }
-                    Entry::Occupied(_) => return Err(Error::new(ErrorKind::DuplicateLabel, span)),
+                    Entry::Occupied(entry) => {
+                        let (_, prev_span) = entry.remove();
+                        return Err(Error::DuplicateLabel {
+                            prev: prev_span,
+                            this: span,
+                        });
+                    }
                 }
             }
             statements.push(stat);
@@ -145,7 +169,7 @@ impl Program {
             .map(|stat| {
                 // TODO: this is ridiculous
                 match stat {
-                    InstrLine(Jump(name)) => InstrLine(Jump(labels[&name])),
+                    InstrLine(Jump(name)) => InstrLine(Jump(labels[&name].0)),
                     Literal(l) => Literal(l),
                     InstrLine(Load(a)) => InstrLine(Load(a)),
                     InstrLine(And(a)) => InstrLine(And(a)),
