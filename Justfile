@@ -11,5 +11,4 @@ doc *args="":
     cargo doc \
         --document-private-items \
         --workspace \
-        --exclude tree-sitter-peppermint \
         {{ args }}

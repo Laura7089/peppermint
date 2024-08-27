@@ -4,6 +4,9 @@ resolver = "2"
 members = [
   "cli",
   "peppermint-rs",
-  "tree-sitter-peppermint",
   "simulate",
+]
+
+exclude = [
+  "tree-sitter-peppermint"
 ]
