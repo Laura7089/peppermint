@@ -35,8 +35,8 @@ fn main() {
     let opt = Opt::parse();
     let content = get_file_content(&opt.file);
     let program = peppermint::Program::parse_source(&content)
-        .map_err(|e| e.spans_to_source(&content))
-        .expect("parse error");
+        .map_err(|e| e.spans_to_source(&content).to_string())
+        .unwrap();
 
     match opt.command {
         Command::Parse {} => {

@@ -19,36 +19,36 @@ pub enum OperandType {
 #[allow(clippy::module_name_repetitions)]
 pub enum Error<S: Debug = Span> {
     /// Encountered unrecognised token.
-    #[error("invalid token at {token:?}")]
+    #[error("invalid token at {token:#?}")]
     InvalidToken {
         /// Span of invalid token.
         token: S,
     },
     /// Wrong kind of token for this context.
-    #[error("unexpected token type at {token:?}")]
+    #[error("unexpected token type at {token:#?}")]
     UnexpectedToken {
         /// Span of unexpected token.
         token: S,
     },
     /// Unknown instruction opcode.
-    #[error("unknown instruction type at {token:?}")]
+    #[error("unknown instruction type at {token:#?}")]
     UnknownInstruction {
         /// Span of unknown instruction
         token: S,
     },
     /// Invalid integer literal.
-    #[error("malformed integer at {token:?}")]
+    #[error("malformed integer at {token:#?}")]
     MalformedInteger {
         /// Span of malformed literal
         token: S,
     },
     /// EOF encountered unexpectedly.
-    #[error("EOF encountered unexpected, last token is at {last_token:?}")]
+    #[error("EOF encountered unexpected, last token is at {last_token:#?}")]
     EndOfFile {
         /// Span of the last token encoutered before EOF.
         last_token: S,
     },
-    #[error("Bad operand at {operand:?} for opcode at {opcode:?}, expected a {wanted}")]
+    #[error("Bad operand at {operand:#?} for opcode at {opcode:#?}, expected a {wanted}")]
     /// Wrong kind of operand for this context.
     BadOperand {
         /// Span of the instruction expecting an operand.
@@ -59,7 +59,9 @@ pub enum Error<S: Debug = Span> {
         wanted: OperandType,
     },
     /// Non-unique label value in source code.
-    #[error("label defined twice in file\nfirst occurrence: {prev:?}\nsecond occurence: {this:?}")]
+    #[error(
+        "label defined twice in file\nfirst occurrence: {prev:#?}\nsecond occurence: {this:#?}"
+    )]
     DuplicateLabel {
         /// Span of the first time this label appeared.
         prev: S,
