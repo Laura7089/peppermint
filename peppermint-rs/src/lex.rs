@@ -24,18 +24,21 @@ pub(crate) enum Token {
     #[regex(
         r"[A-Za-z]+",
         // use the strum::FromStr implementation
-        |lex| lex.slice().parse().map_err(|_| LexError::UnknownInst)
+        |lex| lex.slice().parse().map_err(|_| LexError::UnknownInst),
+        priority = 100,
     )]
     Instruction(InstructionKind),
     /// Address literal.
-    #[regex(r"\[[0-9]+\]", |lex| parse_int(debracket(lex.slice()), 10))]
-    #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| parse_int(debracket(lex.slice()), 16))]
-    #[regex(r"\[0b[01]+\]", |lex| parse_int(debracket(lex.slice()), 2))]
+    // NOTE: we could set different regex definitions for the different
+    // bases, but if we do it this way then we ensure we get an integer parse error
+    // rather than an unknown token error.
+    // For example, under distinct base definitions, "0b101a" would register as an
+    // unknown token, but the user probably meant for that to be a integer so we can
+    // get better error reporting if we assume that.
+    #[regex(r"\[(0[xb])?[0-9A-Za-z]+\]", |lex| parse_int(debracket(lex.slice())))]
     Address(Address),
     /// Integer literal.
-    #[regex(r"[0-9]+", |lex| parse_int(lex.slice(), 10))]
-    #[regex(r"0x[0-9a-zA-Z]+", |lex| parse_int(lex.slice(), 16))]
-    #[regex(r"0b[01]+", |lex| parse_int(lex.slice(), 2))]
+    #[regex(r"(0[xb])?[0-9A-Za-z]+", |lex| parse_int(lex.slice()))]
     Literal(Literal),
     /// Target label for a jump instruction.
     #[regex(r":[a-zA-Z][a-zA-Z_\-0-9]*", |lex| lex.slice()[1..].to_string())]
@@ -54,12 +57,12 @@ fn debracket(input: &str) -> &str {
 }
 
 // only reuturns `ErrorKind` because the lexer can attach the span for us later
-fn parse_int<I: Num>(raw: &str, radix: u32) -> Result<I, LexError> {
-    let raw = match radix {
-        2 | 16 => &raw[2..],
-        _ => raw,
+fn parse_int<I: Num>(raw: &str) -> Result<I, LexError> {
+    let (raw, radix) = match raw.as_bytes().get(1) {
+        Some(b'x') => (&raw[2..], 16),
+        Some(b'b') => (&raw[2..], 2),
+        _ => (raw, 10),
     };
-
     I::from_str_radix(raw, radix).map_err(|_| LexError::InvalidInt)
 }
 
