@@ -95,17 +95,51 @@ mod tests {
     use super::*;
     use test_case::test_case;
 
-    #[test_case("load" => Token::Instruction(InstructionKind::Load))]
-    #[test_case("[0x10]" => Token::Address(16))]
-    #[test_case("[12]" => Token::Address(12))]
-    #[test_case("[0b10]" => Token::Address(2))]
-    #[test_case("0x1A" => Token::Literal(26))]
-    #[test_case("0x2a" => Token::Literal(42))]
-    #[test_case("0b1110" => Token::Literal(14))]
-    #[test_case("1120" => Token::Literal(1120))]
-    #[test_case("my10th-label:" => Token::Label("my10th-label".to_owned()))]
-    fn test_single_token_lex(input: &str) -> Token {
+    use InstructionKind::*;
+    use Token::*;
+
+    #[test_case("load" => Instruction(Load))]
+    #[test_case("lOaD" => Instruction(Load); "mixed case instr")]
+    #[test_case("[0x10]" => Address(16))]
+    #[test_case("[12]" => Address(12))]
+    #[test_case("[0b10]" => Address(2))]
+    #[test_case("0x1A" => Literal(26))]
+    #[test_case("0x2a" => Literal(42))]
+    #[test_case("0b1110" => Literal(14))]
+    #[test_case("1120" => Literal(1120))]
+    #[test_case("my10th-label:" => Label("my10th-label".to_owned()); "label")]
+    #[test_case("my10th-LABEL:" => Label("my10th-LABEL".to_owned()); "label case sensitive")]
+    fn single_token_lex(input: &str) -> Token {
         let mut lexer = Token::lexer(input);
-        lexer.next().expect("no output").expect("parse error")
+        lexer.next().expect("no output").expect("lexing error")
+    }
+
+    // NOTE: these do not have to be valid code, just valid token streams
+    #[test_case(
+        "LOAD 10 [0x10]label:" => vec![
+            Instruction(Load),
+            Literal(10),
+            Address(16),
+            Label("label".to_string()),
+        ]
+        ; "random sequence"
+    )]
+    fn token_seq(input: &str) -> Vec<Token> {
+        Token::lexer(input)
+            .map(|r| r.expect("lexing error"))
+            .collect()
+    }
+
+    #[test_case("0x1bababab" => LexError::InvalidInt)]
+    #[test_case("0b1a" => LexError::InvalidInt)]
+    #[test_case("10ab" => LexError::InvalidInt)]
+    #[test_case("aslkdajns" => LexError::UnknownInst)]
+    fn error(input: &str) -> LexError {
+        let mut lexer = Token::lexer(input);
+        lexer
+            .next()
+            .expect("end of input")
+            .err()
+            .expect("lexer didn't throw an error")
     }
 }
