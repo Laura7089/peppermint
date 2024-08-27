@@ -23,7 +23,7 @@ pub type Literal = u16;
 type StatNum = usize;
 
 /// Statement in Peppermint.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 #[allow(missing_docs)]
 pub enum Statement<L> {
     Label(String),
@@ -35,7 +35,7 @@ pub enum Statement<L> {
 ///
 /// Generic over how the `jump` instruction refers to labels.
 /// This is to reduce code duplication between parsing and finalisation steps.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 #[allow(missing_docs)]
 pub enum Instruction<L> {
     Load(Address),
@@ -194,5 +194,40 @@ impl Program {
     pub fn parse_source(input: &str) -> Result<Self, Error> {
         let tokens = lex::tokenise(input)?;
         Program::from_tokens(&mut tokens.into_iter())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    use error::Error;
+    use Instruction::*;
+    use Statement::*;
+
+    #[test_case("load [0x10]" => vec![InstrLine(Load(16))])]
+    #[test_case("load [0x10] 10 jump :label" => vec![
+        InstrLine(Load(16)),
+        Literal(10),
+        InstrLine(Jump("label".to_string()))
+    ])]
+    fn statement_sequence_from_str(input: &str) -> Vec<Statement<String>> {
+        let mut stream = lex::tokenise(input).expect("lexer error").into_iter();
+        std::iter::from_fn(|| Statement::take_from_token_stream(&mut stream))
+            .map(|res| res.unwrap().0)
+            .collect()
+    }
+
+    #[test_case("load :label" => matches Error::BadOperand { 
+        wanted: error::OperandType::Address, 
+        ..
+    })]
+    fn statement_error_from_str(input: &str) -> Error {
+        let mut stream = lex::tokenise(input).expect("lexer error").into_iter();
+        let res = std::iter::from_fn(|| Statement::take_from_token_stream(&mut stream))
+            .collect::<Result<Vec<_>, _>>();
+
+        res.err().expect("no error thrown")
     }
 }
