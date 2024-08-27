@@ -21,17 +21,21 @@ pub(crate) enum LexError {
 #[logos(error = LexError)]
 pub(crate) enum Token {
     /// Instruction opcode.
-    #[regex(r"[A-Za-z]+", |lex| lex.slice().parse().map_err(|_| LexError::UnknownInst))]
+    #[regex(
+        r"[A-Za-z]+",
+        // use the strum::FromStr implementation
+        |lex| lex.slice().parse().map_err(|_| LexError::UnknownInst)
+    )]
     Instruction(InstructionKind),
     /// Address literal.
-    #[regex(r"\[[0-9]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 10))]
-    #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 16))]
-    #[regex(r"\[0b[01]+\]", |lex| parse_int::<Address>(debracket(lex.slice()), 2))]
+    #[regex(r"\[[0-9]+\]", |lex| parse_int(debracket(lex.slice()), 10))]
+    #[regex(r"\[0x[0-9a-zA-Z]+\]", |lex| parse_int(debracket(lex.slice()), 16))]
+    #[regex(r"\[0b[01]+\]", |lex| parse_int(debracket(lex.slice()), 2))]
     Address(Address),
     /// Integer literal.
-    #[regex(r"[0-9]+", |lex| parse_int::<Literal>(lex.slice(), 10))]
-    #[regex(r"0x[0-9a-zA-Z]+", |lex| parse_int::<Literal>(lex.slice(), 16))]
-    #[regex(r"0b[01]+", |lex| parse_int::<Literal>(lex.slice(), 2))]
+    #[regex(r"[0-9]+", |lex| parse_int(lex.slice(), 10))]
+    #[regex(r"0x[0-9a-zA-Z]+", |lex| parse_int(lex.slice(), 16))]
+    #[regex(r"0b[01]+", |lex| parse_int(lex.slice(), 2))]
     Literal(Literal),
     /// Target label for a jump instruction.
     #[regex(r":[a-zA-Z][a-zA-Z_\-0-9]*", |lex| lex.slice()[1..].to_string())]
@@ -39,6 +43,7 @@ pub(crate) enum Token {
     /// Label.
     #[regex(r"[a-zA-Z][a-zA-Z_\-0-9]*:", |lex| {
         let slice = lex.slice();
+        // remove the ":"
         slice[0..(slice.len() - 1)].to_string()
     })]
     Label(String),
